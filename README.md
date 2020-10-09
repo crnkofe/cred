@@ -41,13 +41,15 @@ Rust and Python have partial syntax highlighting support.
 
 # TODO
 
-Assorted things that I will likely do:
+Assorted ideas for future releases:
 * figure out a better event system
 * test thouroughly for random bugs
 * add replace to search
 * implement goto line
 * delete sections of text
+* allow shortcut configuration
+* add support for themes
 * complete existing syntax highlighters and add support for more
-* add basic IDE features(compile, run unit tests etc.)
-* completion
+* add basic IDE features(compile, run unit tests, show documentation etc.)
+* completion 
 * multi-user editing support in console
