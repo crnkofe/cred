@@ -33,3 +33,12 @@ Common functionalities:
 
 Rust and Python have partial support.
 
+# TODO
+
+Partially curated list:
+* test thouroughly for random bugs
+* add replace to search
+* goto line
+* delete sections of text
+* complete existing syntax highlighters and add support for more
+* IDE features - compile, run unit tests etc.
