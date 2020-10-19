@@ -1112,9 +1112,28 @@ impl FileBuffer {
                 self.coverage_start = Some(start);
                 self.coverage_end = Some(end);
             }
-            Key::Backspace => {
-                if self.text_location > 0 {
-                    self.text_location -= 1;
+            Key::Backspace | Key::Delete => {
+                // delete current selection 
+                if self.coverage == Some(Coverage::All) {
+                    // TODO: 
+                } else {
+                    if self.coverage_start != None {
+                        let mut start = cmp::min(self.coverage_start.unwrap(), self.text_location);
+                        let end = cmp::max(self.coverage_start.unwrap(), self.text_location);
+                        self.text_location = start;
+                        while start != end {
+                            self.remove_from_buffer();
+                            start += 1;
+                        }
+                        if self.coverage == Some(Coverage::Line) {
+                            while self.text_location < self.contents.len() && self.contents[self.text_location] != NEWLINE {
+                                self.remove_from_buffer();
+                            }
+                            if self.text_location < self.contents.len() && self.contents[self.text_location] == NEWLINE {
+                                self.remove_from_buffer();
+                            }
+                        }
+                    }
                 }
             }
             Key::Up | Key::Char(GAME_UP_SHORTCUT) => {
@@ -1656,6 +1675,13 @@ impl HandleKey for SelectionOverlay {
                         coverage: self.coverage,
                     }),
                     window_event: Some(WindowEvent::close(ControlType::SelectionOverlay, None)),
+                    ..Event::key(ekey)
+                };
+            }
+            Key::Backspace | Key::Delete => {
+                return Event{
+                    window_event: Some(WindowEvent::close(ControlType::SelectionOverlay, None)),
+                    bubble_down: true,
                     ..Event::key(ekey)
                 };
             }
@@ -2759,7 +2785,6 @@ impl HandleKey for OpenFileMenu {
                 match self.mode {
                     OpenMenuMode::File => {
                         let selected_path = self.select_item();
-                        log::info!("Selected path: {:?}", selected_path);
                         let some_path_selected = selected_path != None;
                         let open_file_event = if some_path_selected { Some(OpenFileEvent {
                                 path: selected_path.unwrap(),
