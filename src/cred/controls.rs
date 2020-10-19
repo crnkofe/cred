@@ -612,6 +612,7 @@ pub struct FileBuffer {
 
     // do-undo related fields
     // active action is used for redo's so user can undo and redo
+    // if user undo's a few times and then does something new redo history is lost
     active_action: usize,
     action_history: Vec<Action>,
 
@@ -764,9 +765,16 @@ impl FileBuffer {
     fn move_on_line_right(&mut self, steps: usize) {
         let mut remaining_steps = steps;
         let mut text_location = self.text_location;
-        while remaining_steps > 0 && text_location <= (self.contents.len()-1) && self.contents[text_location] != NEWLINE {
-            text_location += 1;
-            remaining_steps -= 1;
+        while remaining_steps > 0 && 
+            text_location <= (self.contents.len()-1) && 
+            self.contents[text_location] != NEWLINE {
+            if self.contents[text_location] == TAB {
+                text_location += 1;
+                remaining_steps -= cmp::min(remaining_steps, TAB_CHARS_COUNT);
+            } else {
+                text_location += 1;
+                remaining_steps -= 1;
+            }
         }
         self.text_location = text_location;
     }
@@ -1028,8 +1036,26 @@ impl FileBuffer {
                     self.action_do(Action::insert(self.text_location, TAB.to_string()));
                 }
                 Key::Enter => {
-                    self.action_do(Action::insert(self.text_location, NEWLINE.to_string()));
+                    // smart tab
+                    // TODO: respect either tab as tab characters or tab as spaces
+                    let mut whitespace_count = 0;
+                    let mut start = if self.text_location > 0 { self.text_location - 1 } else { 0 };
+                    while start > 0 && self.contents[start] != NEWLINE {
+                        if self.contents[start] == TAB {
+                            whitespace_count += TAB_CHARS_COUNT;
+                        } else if self.contents[start].is_whitespace() {
+                            whitespace_count += 1;
+                        } else {
+                            whitespace_count = 0;
+                        }
+                        start -= 1;
+                    }
 
+                    self.action_do(Action::insert(self.text_location, NEWLINE.to_string()));
+                    // make auto tab insertion configurable
+                    for _ in 0..whitespace_count {
+                        self.action_do(Action::insert(self.text_location, SPACE.to_string()));
+                    }
                     self.align_buffer_vertical_down(&window_buffer);
                 }
                 Key::Char(input_char) => {

@@ -223,7 +223,7 @@ mod tests {
 
         let file_buffer = editor.get_active_file_buffer().unwrap();
         let slice = file_buffer.get_slice_string(0, 18);
-        assert_eq!("/* \n * MIT License", slice);
+        assert_eq!("/**\n * MIT License", slice);
     }
 
     #[test]
