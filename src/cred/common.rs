@@ -52,14 +52,6 @@ pub struct FontStyle {
 }
 
 impl FontStyle {
-    pub fn select(&self) -> FontStyle {
-        FontStyle {
-            font_style: self.font_style,
-            foreground_color: self.background_color,
-            background_color: Color::White,
-        }
-    }
-
     /**
      * If text pointer is on also selected portion of text
      */
@@ -144,11 +136,7 @@ pub enum Coverage {
 
 impl Coverage {
     pub fn iter() -> Iter<'static, Coverage> {
-        static COVERAGE_ALL: [Coverage; 3] = [
-            Coverage::FromTo,
-            Coverage::Word,
-            Coverage::Line,
-        ];
+        static COVERAGE_ALL: [Coverage; 3] = [Coverage::FromTo, Coverage::Word, Coverage::Line];
         COVERAGE_ALL.iter()
     }
 }

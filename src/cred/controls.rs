@@ -845,13 +845,13 @@ impl FileBuffer {
         }
     }
 
-    fn text_pointer_to_location(&self, text_location: usize) -> Location {
+    fn text_pointer_to_location(&self, text_location: usize, expand_tabs: bool) -> Location {
         match self.lines.line(text_location) {
             Some((line_index, line_start_location)) => {
                 let row = line_index;
                 let mut column = 0;
                 for i in line_start_location..text_location {
-                    if self.contents[i] == TAB {
+                    if self.contents[i] == TAB && expand_tabs {
                         column += TAB_CHARS_COUNT;
                     } else {
                         column += 1;
@@ -1099,7 +1099,7 @@ impl FileBuffer {
     }
 
     fn update_editing_offset(&mut self, text_location: usize) {
-        self.editing_offset = self.text_pointer_to_location(text_location).column;
+        self.editing_offset = self.text_pointer_to_location(text_location, true).column;
     }
 
     fn set_select_mode(&mut self, coverage: Option<Coverage>) {
@@ -1156,7 +1156,7 @@ impl FileBuffer {
                     let mut end = cmp::max(self.coverage_start.unwrap_or(0), self.text_location);
 
                     if self.coverage == Some(Coverage::Line) {
-                        let end_location = self.text_pointer_to_location(end);
+                        let end_location = self.text_pointer_to_location(end, false);
                         let mut end_length = self.lines.line_length(end_location.row).unwrap_or(0);
                         if end_length > 0 {
                             end_length -= 1;
@@ -1166,7 +1166,12 @@ impl FileBuffer {
 
                     // when start and end are reversed add 1 to end (so selection takes first marked
                     // char into account)
-                    let reverse_add = if self.coverage == Some(Coverage::FromTo) && original_start != start { 1 } else { 0 };
+                    let reverse_add =
+                        if self.coverage == Some(Coverage::FromTo) && original_start != start {
+                            1
+                        } else {
+                            0
+                        };
                     self.coverage_start = Some(start + reverse_add);
                     self.coverage_end = Some(end + reverse_add);
                 }
@@ -1271,13 +1276,12 @@ impl FileBuffer {
                 }
 
                 // get start of current line
-                let start_location = self.text_pointer_to_location(start);
+                let start_location = self.text_pointer_to_location(start, false);
                 let start_highlight = start - start_location.column;
 
-                let end_location = self.text_pointer_to_location(end);
+                let end_location = self.text_pointer_to_location(end, false);
                 let end_highlight = end - end_location.column
                     + self.lines.line_length(end_location.row).unwrap_or(0);
-
                 return index >= start_highlight && index < end_highlight;
             } else if self.coverage_start != None && self.coverage_end != None {
                 return index >= self.coverage_start.unwrap_or(0)
@@ -1497,7 +1501,11 @@ impl Render for FileBuffer {
 
             let char_selected = self.is_selected(index);
             if self.text_location == index {
-                let selected_style = if char_selected { style.select_pointer() } else { style.invert() };
+                let selected_style = if char_selected {
+                    style.select_pointer()
+                } else {
+                    style.invert()
+                };
                 if current_character == TAB || current_character == NEWLINE {
                     buffer.write(
                         &SPACE_STRING,
@@ -1507,10 +1515,16 @@ impl Render for FileBuffer {
                     );
 
                     if current_character == TAB {
-                        let tab_style = if char_selected { style.invert() } else { style.clone() };
+                        let tab_style = if char_selected {
+                            style.invert()
+                        } else {
+                            style.clone()
+                        };
                         for tab_index in 1..TAB_CHARS_COUNT {
-                            let tab_location =
-                                Location::new(current_location.row, current_location.column + tab_index);
+                            let tab_location = Location::new(
+                                current_location.row,
+                                current_location.column + tab_index,
+                            );
                             buffer.write(
                                 &String::from(SPACE_STRING),
                                 tab_location,
@@ -1546,7 +1560,11 @@ impl Render for FileBuffer {
                         Location::new(current_location.row, current_location.column + 1);
                 }
             } else if current_character == TAB {
-                let tab_style = if char_selected { style.invert() } else { style.clone() };
+                let tab_style = if char_selected {
+                    style.invert()
+                } else {
+                    style.clone()
+                };
                 for tab_index in 0..TAB_CHARS_COUNT {
                     let tab_location =
                         Location::new(current_location.row, current_location.column + tab_index);
