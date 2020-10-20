@@ -53,19 +53,19 @@ pub struct FontStyle {
 
 impl FontStyle {
     pub fn select(&self) -> FontStyle {
-        return FontStyle {
+        FontStyle {
             font_style: self.font_style,
             foreground_color: self.background_color,
             background_color: Color::White,
-        };
+        }
     }
 
     pub fn invert(&self) -> FontStyle {
-        return FontStyle {
+        FontStyle {
             font_style: self.font_style,
             foreground_color: self.background_color,
             background_color: self.foreground_color,
-        };
+        }
     }
 }
 
@@ -140,7 +140,7 @@ impl Coverage {
             Coverage::Line,
             Coverage::All,
         ];
-        return COVERAGE_ALL.iter();
+        COVERAGE_ALL.iter()
     }
 }
 
@@ -153,7 +153,7 @@ pub enum UndoRedoAction {
 impl UndoRedoAction {
     pub fn iter() -> Iter<'static, UndoRedoAction> {
         static UNDOREDO_ALL: [UndoRedoAction; 2] = [UndoRedoAction::Undo, UndoRedoAction::Redo];
-        return UNDOREDO_ALL.iter();
+        UNDOREDO_ALL.iter()
     }
 }
 
@@ -179,10 +179,7 @@ pub struct Size {
 
 impl Size {
     pub fn new(rows: usize, columns: usize) -> Self {
-        Self {
-            rows: rows,
-            columns: columns,
-        }
+        Self { rows, columns }
     }
 }
 
@@ -194,9 +191,6 @@ pub struct Location {
 
 impl Location {
     pub fn new(row: usize, column: usize) -> Self {
-        Self {
-            row: row,
-            column: column,
-        }
+        Self { row, column }
     }
 }

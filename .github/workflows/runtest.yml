@@ -11,16 +11,16 @@ jobs:
         uses: actions/checkout@v1
 
       - name: Run formatter 
-        uses: icepuma/rust-action@master
+        uses: docker://crnkofe/rust-base:latest
         with:
           args: cargo fmt -- --check
 
       - name: Run clippy
-        uses: icepuma/rust-action@master
+        uses: docker://crnkofe/rust-base:latest
         with:
           args: cargo clippy -- -Dwarnings 
 
       - name: Run unit tests
-        uses: icepuma/rust-action@master
+        uses: docker://crnkofe/rust-base:latest
         with:
           args: cargo test

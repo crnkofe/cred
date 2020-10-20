@@ -48,7 +48,7 @@ impl WindowEvent {
     pub fn open(control_type: ControlType) -> Self {
         Self {
             action: WindowAction::Open,
-            control_type: control_type,
+            control_type,
             control_id: None,
         }
     }
@@ -56,8 +56,8 @@ impl WindowEvent {
     pub fn close(control_type: ControlType, control_id: Option<Uuid>) -> Self {
         Self {
             action: WindowAction::Close,
-            control_type: control_type,
-            control_id: control_id,
+            control_type,
+            control_id,
         }
     }
 }
@@ -126,7 +126,7 @@ pub struct Event {
 
 impl Event {
     pub fn new() -> Self {
-        return Self {
+        Self {
             handled: false,
             bubble_down: false,
             create_file_event: None,
@@ -138,11 +138,11 @@ impl Event {
             search_event: None,
             window_event: None,
             exit_event: None,
-        };
+        }
     }
 
     pub fn key(key: ExtendedKey) -> Self {
-        return Self {
+        Self {
             handled: false,
             bubble_down: false,
             create_file_event: None,
@@ -154,52 +154,48 @@ impl Event {
             search_event: None,
             window_event: None,
             exit_event: None,
-        };
+        }
     }
 }
 
 pub trait HandleSelectEvent {
     fn handle_select_event(&mut self, _select_event: SelectEvent) -> Event {
-        return Event::new();
+        Event::new()
     }
 }
 
 pub trait HandleUndoEvent {
     fn handle_undo_event(&mut self, _undo_event: UndoEvent) -> Event {
-        return Event::new();
+        Event::new()
     }
 }
 
 pub trait HandleEvent {
     fn handle_event(&self, _search_event: Event) -> Event {
-        return Event::new();
+        Event::new()
     }
 }
 
 pub trait HandleSearchEvent {
     fn handle_search_event(&mut self, _search_event: SearchEvent, _window_buffer: Buffer) -> Event {
-        return Event::new();
+        Event::new()
     }
 }
 
 pub trait HandleWindowEvent {
     fn handle_window_event(&mut self, window_event: WindowEvent) -> Event {
         match window_event.action {
-            WindowAction::Open => {
-                return self.handle_open_window_event(window_event);
-            }
-            WindowAction::Close => {
-                return self.handle_close_window_event(window_event);
-            }
+            WindowAction::Open => self.handle_open_window_event(window_event),
+            WindowAction::Close => self.handle_close_window_event(window_event),
         }
     }
 
     fn handle_open_window_event(&mut self, _window_event: WindowEvent) -> Event {
-        return Event::new();
+        Event::new()
     }
 
     fn handle_close_window_event(&mut self, _window_event: WindowEvent) -> Event {
-        return Event::new();
+        Event::new()
     }
 }
 
@@ -208,6 +204,6 @@ pub trait HandleWindowEvent {
  */
 pub trait HandleKey {
     fn handle_key(&mut self, _key: ExtendedKey, _window_buffer: Buffer) -> Event {
-        return Event::new();
+        Event::new()
     }
 }

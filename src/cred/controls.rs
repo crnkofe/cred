@@ -105,33 +105,32 @@ fn handle_key<T: HandleKey>(
     buffer: Buffer,
 ) -> Option<Event> {
     match map.get_mut(&uuid) {
-        Some(control) => {
-            return Some(control.handle_key(ekey, buffer));
-        }
+        Some(control) => Some(control.handle_key(ekey, buffer)),
         None => {
             log::error!("Unknown control: {}", uuid);
-            return None;
+            None
         }
     }
 }
 
 fn get_renderable<T: Render>(map: &HashMap<Uuid, T>, uuid: Uuid) -> Option<&dyn Render> {
     match map.get(&uuid) {
-        Some(control) => {
-            return Some(control);
-        }
+        Some(control) => Some(control),
         None => {
             log::error!("Unknown control: {}", uuid);
-            return None;
+            None
         }
     }
 }
 
 fn ord(c: char) -> i32 {
-    return (c as u8) as i32;
+    (c as u8) as i32
 }
 
-pub fn rabin_karp_search(pattern: String, text: &Vec<char>, prime: i32) -> Vec<usize> {
+// disable linter here since algorithm matches original pseudocode and is actually more
+// understandable that way
+#[allow(clippy::many_single_char_names)]
+pub fn rabin_karp_search(pattern: String, text: &[char], prime: i32) -> Vec<usize> {
     // locations of found matching patterns
     let mut result: Vec<usize> = Vec::new();
 
@@ -191,20 +190,20 @@ pub fn rabin_karp_search(pattern: String, text: &Vec<char>, prime: i32) -> Vec<u
             }
         }
     }
-    return result;
+    result
 }
 
 trait Window {
     fn get_origin(&self) -> Location {
-        return Location::new(0, 0);
+        Location::new(0, 0)
     }
 
     fn get_size(&self) -> Size {
-        return Size::new(0, 0);
+        Size::new(0, 0)
     }
 
     fn get_title(&self) -> String {
-        return String::from("");
+        String::from("")
     }
 
     fn render_window(&self, buffer: &Buffer) {
@@ -293,7 +292,7 @@ impl Action {
         Self {
             action_type: ActionType::Remove,
             start_location: at,
-            content: content.clone(),
+            content,
             len: length,
         }
     }
@@ -326,7 +325,7 @@ impl LineIndex {
     }
 
     pub fn len(&self) -> usize {
-        return self.line_size.len();
+        self.line_size.len()
     }
 
     pub fn location(&self, line: usize) -> Option<usize> {
@@ -334,7 +333,7 @@ impl LineIndex {
             return Some(0);
         }
         let end_line = cmp::min(line, self.line_size.len() - 1);
-        return Some(self.line_size[0..end_line].iter().sum());
+        Some(self.line_size[0..end_line].iter().sum())
     }
 
     pub fn line_length(&self, line: usize) -> Option<usize> {
@@ -342,14 +341,14 @@ impl LineIndex {
         if line > (self.line_size.len() - 1) {
             return None;
         }
-        return Some(self.line_size[line]);
+        Some(self.line_size[line])
     }
 
     /**
      * Returns (line index, line start)
      */
     pub fn line(&self, location: usize) -> Option<(usize, usize)> {
-        if self.line_size.len() == 0 {
+        if self.line_size.is_empty() {
             // noninitialized index
             return None;
         }
@@ -364,7 +363,7 @@ impl LineIndex {
             active_location += line_length;
         }
 
-        return Some((self.line_size.len() - 1, last_line_start));
+        Some((self.line_size.len() - 1, last_line_start))
     }
 
     /**
@@ -456,15 +455,15 @@ impl ControlReference {
     pub fn new(control_type: ControlType, priority: usize) -> Self {
         Self {
             uuid: Uuid::new_v4(),
-            priority: priority,
-            control_type: control_type,
+            priority,
+            control_type,
         }
     }
 
     fn is_overlay(&self) -> bool {
-        return self.control_type == ControlType::SelectionOverlay
+        self.control_type == ControlType::SelectionOverlay
             || self.control_type == ControlType::UndoRedoOverlay
-            || self.control_type == ControlType::SearchOverlay;
+            || self.control_type == ControlType::SearchOverlay
     }
 }
 
@@ -539,12 +538,8 @@ impl Buffer {
     fn peek_event(&self, duration: Duration) -> Option<rustbox::EventResult> {
         unsafe {
             match &EDITOR_BUFFER {
-                Some(rust_box) => {
-                    return Some(rust_box.peek_event(duration, false));
-                }
-                None => {
-                    return None;
-                }
+                Some(rust_box) => Some(rust_box.peek_event(duration, false)),
+                None => None,
             }
         }
     }
@@ -562,7 +557,7 @@ impl Buffer {
 
     fn write(
         &self,
-        string: &String,
+        string: &str,
         text_location: Location,
         view_location: Location,
         style: FontStyle,
@@ -572,36 +567,30 @@ impl Buffer {
         }
         let cropped_location = crop_location_with_buffer(text_location, view_location);
         unsafe {
-            match &EDITOR_BUFFER {
-                Some(rust_box) => {
-                    rust_box.print(
-                        cropped_location.column,
-                        cropped_location.row,
-                        style.font_style,
-                        style.foreground_color,
-                        style.background_color,
-                        &string,
-                    );
-                }
-                _ => {}
+            if let Some(rust_box) = &EDITOR_BUFFER {
+                rust_box.print(
+                    cropped_location.column,
+                    cropped_location.row,
+                    style.font_style,
+                    style.foreground_color,
+                    style.background_color,
+                    &string,
+                );
             }
         }
     }
 
-    fn write_direct(&self, string: &String, view_location: Location, style: FontStyle) {
+    fn write_direct(&self, string: &str, view_location: Location, style: FontStyle) {
         unsafe {
-            match &EDITOR_BUFFER {
-                Some(rust_box) => {
-                    rust_box.print(
-                        view_location.column,
-                        view_location.row,
-                        style.font_style,
-                        style.foreground_color,
-                        style.background_color,
-                        &string,
-                    );
-                }
-                _ => {}
+            if let Some(rust_box) = &EDITOR_BUFFER {
+                rust_box.print(
+                    view_location.column,
+                    view_location.row,
+                    style.font_style,
+                    style.foreground_color,
+                    style.background_color,
+                    &string,
+                );
             }
         }
     }
@@ -655,9 +644,9 @@ pub struct FileBuffer {
 
 impl FileBuffer {
     fn new(buffer_id: Uuid, syntax: Syntax) -> Self {
-        return Self {
-            buffer_id: buffer_id,
-            syntax: syntax,
+        Self {
+            buffer_id,
+            syntax,
             file_path: "".to_owned(),
             lines: LineIndex::new(),
             coverage: None,
@@ -672,19 +661,19 @@ impl FileBuffer {
             pattern: String::from(""),
             current_match: 0,
             matches: Vec::new(),
-        };
+        }
     }
 
     pub fn get_slice_string(&self, from: usize, to: usize) -> String {
-        let mut data: Vec<u8> = Vec::with_capacity(cmp::min(self.contents.len() - from, to - from));
-        data.resize(cmp::min(self.contents.len() - from, to - from), 0);
-        let mut i = 0;
-        for c in &self.contents[from..cmp::min(self.contents.len(), to)] {
+        let mut data: Vec<u8> = vec![0; cmp::min(self.contents.len() - from, to - from)];
+        for (i, c) in (&self.contents[from..cmp::min(self.contents.len(), to)])
+            .iter()
+            .enumerate()
+        {
             data[i] = *c as u8;
-            i += 1;
         }
         let converted_string = String::from_utf8(data);
-        return converted_string.unwrap();
+        converted_string.unwrap()
     }
 
     fn write_to_buffer(&mut self, character: char) {
@@ -696,7 +685,7 @@ impl FileBuffer {
         }
 
         self.contents.insert(self.text_location, character);
-        self.text_location = self.text_location + 1;
+        self.text_location += 1;
     }
 
     fn remove_from_buffer(&mut self) {
@@ -734,7 +723,7 @@ impl FileBuffer {
     }
 
     fn find_start_of_line(&self, text_location: usize) -> usize {
-        if text_location <= 0 {
+        if text_location == 0 {
             return text_location;
         }
 
@@ -747,9 +736,9 @@ impl FileBuffer {
         }
 
         if self.contents[start_of_line] == NEWLINE {
-            return start_of_line + 1;
+            start_of_line + 1
         } else {
-            return start_of_line;
+            start_of_line
         }
     }
 
@@ -768,7 +757,7 @@ impl FileBuffer {
             return self.text_location;
         }
 
-        return end_of_line;
+        end_of_line
     }
 
     fn find_next_line(&self) -> usize {
@@ -790,7 +779,7 @@ impl FileBuffer {
             return self.text_location;
         }
 
-        return cmp::min(self.contents.len() - 1, end_of_line + 1);
+        cmp::min(self.contents.len() - 1, end_of_line + 1)
     }
 
     fn move_on_line_right(&mut self, steps: usize) {
@@ -868,7 +857,7 @@ impl FileBuffer {
                         column += 1;
                     }
                 }
-                return Location::new(row, column);
+                Location::new(row, column)
             }
             None => {
                 panic!("Development error - can't find text pointer.");
@@ -888,7 +877,7 @@ impl FileBuffer {
                         column += 1;
                     }
                 }
-                return Location::new(row, column);
+                Location::new(row, column)
             }
             None => {
                 panic!("Development error - can't find text pointer.");
@@ -899,12 +888,8 @@ impl FileBuffer {
     // TODO: This can take quite a while
     fn find_start_of_render(&self, view_location: Location) -> usize {
         match self.lines.location(view_location.row) {
-            Some(location) => {
-                return location;
-            }
-            None => {
-                return 0;
-            }
+            Some(location) => location,
+            None => 0,
         }
     }
 
@@ -950,12 +935,11 @@ impl FileBuffer {
 
         let mut ctx: ClipboardContext = ctx_option.unwrap();
         match String::from_utf8(contents.iter().map(|x| *x as u8).collect()) {
-            Ok(converted_string) => match ctx.set_contents(converted_string) {
-                Err(e) => {
+            Ok(converted_string) => {
+                if let Err(e) = ctx.set_contents(converted_string) {
                     log::warn!("Failed pasting to clipboard: {:?}", e);
                 }
-                _ => {}
-            },
+            }
             Err(e) => {
                 log::info!("Failed converting input to UTF-8: {:?}", e);
             }
@@ -964,8 +948,8 @@ impl FileBuffer {
 
     fn handle_key_normal(&mut self, ekey: ExtendedKey, window_buffer: Buffer) -> Event {
         if ekey.modifiers.ctrl {
-            match ekey.key {
-                Key::Char(input_control) => match input_control {
+            if let Key::Char(input_control) = ekey.key {
+                match input_control {
                     CTRL_MENU_SHORTCUT => {
                         return Event {
                             window_event: Some(WindowEvent::open(ControlType::Menu)),
@@ -994,8 +978,7 @@ impl FileBuffer {
                         }
                     }
                     _ => {}
-                },
-                _ => {}
+                }
             }
         } else {
             /*
@@ -1112,7 +1095,7 @@ impl FileBuffer {
             }
         }
 
-        return Event::new();
+        Event::new()
     }
 
     fn update_editing_offset(&mut self, text_location: usize) {
@@ -1193,26 +1176,24 @@ impl FileBuffer {
                 // delete current selection
                 if self.coverage == Some(Coverage::All) {
                     // TODO:
-                } else {
-                    if self.coverage_start != None {
-                        let mut start = cmp::min(self.coverage_start.unwrap(), self.text_location);
-                        let end = cmp::max(self.coverage_start.unwrap(), self.text_location);
-                        self.text_location = start;
-                        while start != end {
+                } else if self.coverage_start != None {
+                    let mut start = cmp::min(self.coverage_start.unwrap(), self.text_location);
+                    let end = cmp::max(self.coverage_start.unwrap(), self.text_location);
+                    self.text_location = start;
+                    while start != end {
+                        self.remove_from_buffer();
+                        start += 1;
+                    }
+                    if self.coverage == Some(Coverage::Line) {
+                        while self.text_location < self.contents.len()
+                            && self.contents[self.text_location] != NEWLINE
+                        {
                             self.remove_from_buffer();
-                            start += 1;
                         }
-                        if self.coverage == Some(Coverage::Line) {
-                            while self.text_location < self.contents.len()
-                                && self.contents[self.text_location] != NEWLINE
-                            {
-                                self.remove_from_buffer();
-                            }
-                            if self.text_location < self.contents.len()
-                                && self.contents[self.text_location] == NEWLINE
-                            {
-                                self.remove_from_buffer();
-                            }
+                        if self.text_location < self.contents.len()
+                            && self.contents[self.text_location] == NEWLINE
+                        {
+                            self.remove_from_buffer();
                         }
                     }
                 }
@@ -1273,58 +1254,50 @@ impl FileBuffer {
             _ => {}
         }
 
-        return Event::new();
+        Event::new()
     }
 
     fn is_selected(&self, index: usize) -> bool {
-        match self.coverage {
-            Some(style) => {
-                if self.coverage_start == None {
-                    return false;
-                }
-                if style == Coverage::Line {
-                    let start: usize;
-                    let end: usize;
-                    if index < self.coverage_start.unwrap_or(0) {
-                        start = self.text_location;
-                        end = self.coverage_start.unwrap_or(0);
-                    } else {
-                        start = self.coverage_start.unwrap_or(0);
-                        end = self.text_location;
-                    }
-
-                    // get start of current line
-                    let start_location = self.text_pointer_to_location(start);
-                    let start_highlight = start - start_location.column;
-
-                    let end_location = self.text_pointer_to_location(end);
-                    let end_highlight = end - end_location.column
-                        + self.lines.line_length(end_location.row).unwrap_or(0);
-
-                    return index >= start_highlight && index < end_highlight;
-                } else {
-                    if self.coverage_start != None && self.coverage_end != None {
-                        return index >= self.coverage_start.unwrap_or(0)
-                            && index < self.coverage_end.unwrap_or(0);
-                    } else {
-                        return (index >= self.coverage_start.unwrap_or(0)
-                            && index <= self.text_location)
-                            || (index <= self.coverage_start.unwrap_or(0)
-                                && index >= self.text_location);
-                    }
-                }
-            }
-            None => {
+        if let Some(style) = self.coverage {
+            if self.coverage_start == None {
                 return false;
             }
-        };
+            if style == Coverage::Line {
+                let start: usize;
+                let end: usize;
+                if index < self.coverage_start.unwrap_or(0) {
+                    start = self.text_location;
+                    end = self.coverage_start.unwrap_or(0);
+                } else {
+                    start = self.coverage_start.unwrap_or(0);
+                    end = self.text_location;
+                }
+
+                // get start of current line
+                let start_location = self.text_pointer_to_location(start);
+                let start_highlight = start - start_location.column;
+
+                let end_location = self.text_pointer_to_location(end);
+                let end_highlight = end - end_location.column
+                    + self.lines.line_length(end_location.row).unwrap_or(0);
+
+                return index >= start_highlight && index < end_highlight;
+            } else if self.coverage_start != None && self.coverage_end != None {
+                return index >= self.coverage_start.unwrap_or(0)
+                    && index < self.coverage_end.unwrap_or(0);
+            } else {
+                return (index >= self.coverage_start.unwrap_or(0) && index <= self.text_location)
+                    || (index <= self.coverage_start.unwrap_or(0) && index >= self.text_location);
+            }
+        }
+        false
     }
 
     fn substring(&self, start: usize, end: usize) -> Vec<char> {
         let from = std::cmp::min(start, end);
         let to = std::cmp::max(start, end);
 
-        return self.contents[from..std::cmp::min(self.contents.len(), to)].to_vec();
+        self.contents[from..std::cmp::min(self.contents.len(), to)].to_vec()
     }
 
     fn handle_action_only(&mut self, action: Action) {
@@ -1365,21 +1338,18 @@ impl FileBuffer {
         self.handle_action_only(action.clone());
         let mut merged: bool = false;
         if self.active_action > 0 {
-            match self.action_history.get(self.active_action - 1) {
-                Some(previous_action) => {
-                    if previous_action.action_type == ActionType::Insert
-                        && (previous_action.start_location + previous_action.len)
-                            == action.start_location
-                        && !previous_action.content.ends_with(NEWLINE)
-                    {
-                        let mut merged_action = previous_action.clone();
-                        merged_action.content += &action.content;
-                        merged_action.len = merged_action.content.len();
-                        self.action_history[self.active_action - 1] = merged_action;
-                        merged = true;
-                    }
+            if let Some(previous_action) = self.action_history.get(self.active_action - 1) {
+                if previous_action.action_type == ActionType::Insert
+                    && (previous_action.start_location + previous_action.len)
+                        == action.start_location
+                    && !previous_action.content.ends_with(NEWLINE)
+                {
+                    let mut merged_action = previous_action.clone();
+                    merged_action.content += &action.content;
+                    merged_action.len = merged_action.content.len();
+                    self.action_history[self.active_action - 1] = merged_action;
+                    merged = true;
                 }
-                None => {}
             }
         }
 
@@ -1398,12 +1368,8 @@ impl FileBuffer {
 
     fn get_action_at(&mut self, action_index: usize) -> Option<Action> {
         match self.action_history.get(action_index) {
-            Some(action) => {
-                return Some(action.clone());
-            }
-            None => {
-                return None;
-            }
+            Some(action) => Some(action.clone()),
+            None => None,
         }
     }
 
@@ -1412,16 +1378,12 @@ impl FileBuffer {
             return;
         }
 
-        match self.get_action_at(action_index) {
-            Some(action) => {
-                if action.action_type == ActionType::Insert
-                    || action.action_type == ActionType::Remove
-                {
-                    self.handle_action_only(action.clone());
-                    self.active_action += 1;
-                }
+        if let Some(action) = self.get_action_at(action_index) {
+            if action.action_type == ActionType::Insert || action.action_type == ActionType::Remove
+            {
+                self.handle_action_only(action);
+                self.active_action += 1;
             }
-            None => {}
         }
     }
 
@@ -1454,10 +1416,10 @@ impl FileBuffer {
 
     #[allow(dead_code)]
     pub fn get_current_match_location(&self) -> Option<usize> {
-        if self.pattern == String::from("") {
+        if self.pattern == *"" {
             return None;
         }
-        return Some(self.matches[self.current_match]);
+        Some(self.matches[self.current_match])
     }
 
     /**
@@ -1482,9 +1444,9 @@ impl FileBuffer {
 impl HandleKey for FileBuffer {
     fn handle_key(&mut self, ekey: ExtendedKey, window_buffer: Buffer) -> Event {
         if self.coverage == None {
-            return self.handle_key_normal(ekey, window_buffer);
+            self.handle_key_normal(ekey, window_buffer)
         } else {
-            return self.handle_key_selection(ekey, window_buffer);
+            self.handle_key_selection(ekey, window_buffer)
         }
     }
 }
@@ -1530,8 +1492,8 @@ impl Render for FileBuffer {
                     && index < (start_of_syntax_highlight + x.end)
             });
 
-            let style = if syntax_style.is_some() {
-                syntax_style.unwrap().style.clone()
+            let style = if let Some(actual_style) = syntax_style {
+                actual_style.style.clone()
             } else {
                 NORMAL_STYLE
             };
@@ -1598,7 +1560,7 @@ impl Render for FileBuffer {
             } else {
                 let style = if char_selected { style.invert() } else { style };
                 buffer.write(
-                    &String::from(current_character_str),
+                    &current_character_str,
                     current_location,
                     view_location,
                     style,
@@ -1627,24 +1589,22 @@ impl HandleSearchEvent for FileBuffer {
     fn handle_search_event(&mut self, search_event: SearchEvent, window_buffer: Buffer) -> Event {
         if search_event.pattern != self.pattern {
             self.pattern = search_event.pattern.clone();
-            self.matches = rabin_karp_search(search_event.pattern.clone(), &self.contents, 101);
+            self.matches = rabin_karp_search(search_event.pattern, &self.contents, 101);
             self.set_match_index(0, window_buffer);
-        } else {
-            if self.matches.len() > 0 {
-                let mut new_match = self.current_match;
-                if search_event.direction == SearchDirection::Forward {
-                    new_match = (self.current_match + 1) % self.matches.len();
-                } else if search_event.direction == SearchDirection::Backward {
-                    if self.current_match == 0 {
-                        new_match = self.matches.len() - 1;
-                    } else {
-                        new_match = (self.current_match - 1) % self.matches.len();
-                    }
+        } else if !self.matches.is_empty() {
+            let mut new_match = self.current_match;
+            if search_event.direction == SearchDirection::Forward {
+                new_match = (self.current_match + 1) % self.matches.len();
+            } else if search_event.direction == SearchDirection::Backward {
+                if self.current_match == 0 {
+                    new_match = self.matches.len() - 1;
+                } else {
+                    new_match = (self.current_match - 1) % self.matches.len();
                 }
-                self.set_match_index(new_match, window_buffer);
             }
+            self.set_match_index(new_match, window_buffer);
         }
-        return Event::new();
+        Event::new()
     }
 }
 
@@ -1658,7 +1618,7 @@ impl HandleUndoEvent for FileBuffer {
                 self.redo();
             }
         }
-        return Event::new();
+        Event::new()
     }
 }
 
@@ -1682,7 +1642,7 @@ impl HandleSelectEvent for FileBuffer {
             }
         }
 
-        return Event::new();
+        Event::new()
     }
 }
 
@@ -1741,7 +1701,7 @@ impl HandleKey for UndoRedoOverlay {
                 // skip unknown chars
             }
         }
-        return Event::new();
+        Event::new()
     }
 }
 
@@ -1768,15 +1728,15 @@ impl Render for UndoRedoOverlay {
 
 impl Window for UndoRedoOverlay {
     fn get_origin(&self) -> Location {
-        return Location::new(0, 0);
+        Location::new(0, 0)
     }
 
     fn get_size(&self) -> Size {
-        return self.size;
+        self.size
     }
 
     fn get_title(&self) -> String {
-        return self.title.clone();
+        self.title.clone()
     }
 }
 
@@ -1881,10 +1841,10 @@ impl HandleKey for SelectionOverlay {
                 // skip unknown chars
             }
         }
-        return Event {
+        Event {
             window_event: Some(WindowEvent::close(ControlType::SelectionOverlay, None)),
             ..Event::key(ekey)
-        };
+        }
     }
 }
 
@@ -1911,15 +1871,15 @@ impl Render for SelectionOverlay {
 
 impl Window for SelectionOverlay {
     fn get_origin(&self) -> Location {
-        return Location::new(0, 0);
+        Location::new(0, 0)
     }
 
     fn get_size(&self) -> Size {
-        return self.size;
+        self.size
     }
 
     fn get_title(&self) -> String {
-        return self.title.clone();
+        self.title.clone()
     }
 }
 
@@ -1983,53 +1943,46 @@ impl HandleKey for SearchOverlay {
                 if !self.pattern_read_only {
                     self.pattern.insert(self.pattern_location, c);
                     self.pattern_location += 1;
-                } else {
-                    if c == SEARCH_FORWARD_SHORTCUT {
-                        self.search_forward = true;
-                        self.search_backward = false;
-                        return Event {
-                            search_event: Some(SearchEvent {
-                                direction: SearchDirection::Forward,
-                                pattern: self.pattern.clone(),
-                            }),
-                            ..Event::new()
-                        };
-                    } else if c == SEARCH_BACKWARD_SHORTCUT {
-                        self.search_forward = false;
-                        self.search_backward = true;
-                        return Event {
-                            search_event: Some(SearchEvent {
-                                direction: SearchDirection::Backward,
-                                pattern: self.pattern.clone(),
-                            }),
-                            ..Event::new()
-                        };
-                    }
+                } else if c == SEARCH_FORWARD_SHORTCUT {
+                    self.search_forward = true;
+                    self.search_backward = false;
+                    return Event {
+                        search_event: Some(SearchEvent {
+                            direction: SearchDirection::Forward,
+                            pattern: self.pattern.clone(),
+                        }),
+                        ..Event::new()
+                    };
+                } else if c == SEARCH_BACKWARD_SHORTCUT {
+                    self.search_forward = false;
+                    self.search_backward = true;
+                    return Event {
+                        search_event: Some(SearchEvent {
+                            direction: SearchDirection::Backward,
+                            pattern: self.pattern.clone(),
+                        }),
+                        ..Event::new()
+                    };
                 }
                 return Event::new();
             }
             Key::Backspace => {
-                if !self.pattern_read_only {
-                    if self.pattern_location > 0 && !self.pattern.is_empty() {
-                        self.pattern.remove(self.pattern_location - 1);
-                        self.pattern_location -= 1;
-                    }
+                if !self.pattern_read_only && self.pattern_location > 0 && !self.pattern.is_empty()
+                {
+                    self.pattern.remove(self.pattern_location - 1);
+                    self.pattern_location -= 1;
                 }
                 return Event::new();
             }
             Key::Delete => {
-                if !self.pattern_read_only {
-                    if self.pattern_location < self.pattern.len() {
-                        self.pattern.remove(self.pattern_location);
-                    }
+                if !self.pattern_read_only && self.pattern_location < self.pattern.len() {
+                    self.pattern.remove(self.pattern_location);
                 }
                 return Event::new();
             }
             Key::Left => {
-                if !self.pattern_read_only {
-                    if self.pattern_location > 0 {
-                        self.pattern_location -= 1;
-                    }
+                if !self.pattern_read_only && self.pattern_location > 0 {
+                    self.pattern_location -= 1;
                 }
                 return Event::new();
             }
@@ -2061,10 +2014,10 @@ impl HandleKey for SearchOverlay {
                 // skip unknown chars
             }
         }
-        return Event {
+        Event {
             window_event: Some(WindowEvent::close(ControlType::SearchOverlay, None)),
             ..Event::new()
-        };
+        }
     }
 }
 
@@ -2095,15 +2048,15 @@ impl Render for SearchOverlay {
 
 impl Window for SearchOverlay {
     fn get_origin(&self) -> Location {
-        return Location::new(0, 0);
+        Location::new(0, 0)
     }
 
     fn get_size(&self) -> Size {
-        return self.size;
+        self.size
     }
 
     fn get_title(&self) -> String {
-        return self.title.clone();
+        self.title.clone()
     }
 }
 
@@ -2128,47 +2081,47 @@ struct Menu {
 type MenuItemCallback = fn(item: &MenuItem) -> Option<Event>;
 
 fn new_callback(_item: &MenuItem) -> Option<Event> {
-    return Some(Event {
+    Some(Event {
         create_file_event: Some(CreateFileEvent {}),
         window_event: Some(WindowEvent::close(ControlType::Menu, None)),
         ..Event::new()
-    });
+    })
 }
 
 fn open_callback(_item: &MenuItem) -> Option<Event> {
-    return Some(Event {
+    Some(Event {
         window_event: Some(WindowEvent::open(ControlType::OpenFileMenu)),
         ..Event::new()
-    });
+    })
 }
 
 fn open_buffer_callback(_item: &MenuItem) -> Option<Event> {
     // TODO: open buffers
-    return Some(Event {
+    Some(Event {
         window_event: Some(WindowEvent::open(ControlType::FileBuffer)),
         ..Event::new()
-    });
+    })
 }
 
 fn save_callback(_item: &MenuItem) -> Option<Event> {
-    return Some(Event {
+    Some(Event {
         window_event: Some(WindowEvent::open(ControlType::YesNoDialog)),
         ..Event::new()
-    });
+    })
 }
 
 fn save_as_callback(_item: &MenuItem) -> Option<Event> {
-    return Some(Event {
+    Some(Event {
         window_event: Some(WindowEvent::open(ControlType::InputDialog)),
         ..Event::new()
-    });
+    })
 }
 
 fn save_as_close_callback(_item: &MenuItem) -> Option<Event> {
-    return Some(Event {
+    Some(Event {
         window_event: Some(WindowEvent::close(ControlType::InputDialog, None)),
         ..Event::new()
-    });
+    })
 }
 
 fn save_file_buffer_callback(item: &MenuItem) -> Option<Event> {
@@ -2230,7 +2183,7 @@ fn save_file_buffer_callback(item: &MenuItem) -> Option<Event> {
                         }
                     }
                 }
-                i = i + BUFFER_SIZE;
+                i += BUFFER_SIZE;
             }
             match file.set_len(item.contents.len() as u64) {
                 Ok(_) => { /* noop */ }
@@ -2240,25 +2193,25 @@ fn save_file_buffer_callback(item: &MenuItem) -> Option<Event> {
             }
         }
     };
-    return Some(Event {
+    Some(Event {
         window_event: Some(WindowEvent::close(ControlType::YesNoDialog, None)),
         ..Event::new()
-    });
+    })
 }
 
 fn save_close_callback(_item: &MenuItem) -> Option<Event> {
     log::info!("Close save dialog");
-    return Some(Event {
+    Some(Event {
         window_event: Some(WindowEvent::close(ControlType::YesNoDialog, None)),
         ..Event::new()
-    });
+    })
 }
 
 fn exit_callback(_item: &MenuItem) -> Option<Event> {
-    return Some(Event {
+    Some(Event {
         exit_event: Some(ExitEvent {}),
         ..Event::new()
-    });
+    })
 }
 
 struct MenuItem {
@@ -2282,23 +2235,21 @@ impl MenuItem {
         callback: MenuItemCallback,
     ) -> Self {
         Self {
-            shortcut: shortcut,
-            selected: selected,
-            callback: callback,
+            shortcut,
+            selected,
+            callback,
             file_path: String::from(""),
             contents: Vec::new(),
-            title: title,
+            title,
         }
     }
 }
 
 impl Menu {
     fn down(&mut self) {
-        let mut item_index = 0;
         self.selected_index = (self.selected_index + 1) % self.items.len();
-        for item in self.items.iter_mut() {
+        for (item_index, item) in self.items.iter_mut().enumerate() {
             item.selected = item_index == self.selected_index;
-            item_index += 1;
         }
     }
 }
@@ -2312,25 +2263,21 @@ impl HandleKey for Menu {
                     ..Event::new()
                 };
             }
-            Key::Enter | Key::Char(SPACE) => match self.items.iter().nth(self.selected_index) {
-                Some(selected_item) => match (selected_item.callback)(selected_item) {
-                    Some(result) => {
+            Key::Enter | Key::Char(SPACE) => {
+                if let Some(selected_item) = self.items.iter().nth(self.selected_index) {
+                    if let Some(result) = (selected_item.callback)(selected_item) {
                         return result;
                     }
-                    None => {}
-                },
-                None => {}
-            },
+                }
+            }
             Key::Up => {
                 if self.selected_index > 0 {
                     self.selected_index = (self.selected_index - 1) % self.items.len();
                 } else {
                     self.selected_index = self.items.len() - 1;
                 }
-                let mut item_index = 0;
-                for item in self.items.iter_mut() {
+                for (item_index, item) in self.items.iter_mut().enumerate() {
                     item.selected = item_index == self.selected_index;
-                    item_index += 1;
                 }
                 return Event::new();
             }
@@ -2352,20 +2299,13 @@ impl HandleKey for Menu {
                 }
 
                 // check if any shortcut hit
-                match self
+                if let Some(item) = self
                     .items
                     .iter()
-                    .filter(|item| item.shortcut == Some(input_char))
-                    .next()
+                    .find(|item| item.shortcut == Some(input_char))
                 {
-                    Some(item) => match (item.callback)(item) {
-                        Some(result) => {
-                            return result;
-                        }
-                        None => {}
-                    },
-                    None => {
-                        // skip random key mashing
+                    if let Some(result) = (item.callback)(item) {
+                        return result;
                     }
                 }
             }
@@ -2373,7 +2313,7 @@ impl HandleKey for Menu {
                 // skip unknown chars
             }
         }
-        return Event::new();
+        Event::new()
     }
 }
 
@@ -2384,8 +2324,7 @@ impl Render for Menu {
     fn render(&self, buffer: &Buffer) {
         self.render_window(buffer);
 
-        let mut item_index = 0;
-        for item in self.items.iter() {
+        for (item_index, item) in self.items.iter().enumerate() {
             let padding_top_left = [1, 1];
             let row_spacing = 1;
 
@@ -2401,32 +2340,24 @@ impl Render for Menu {
                 NORMAL_STYLE
             };
             buffer.write_direct(&item.title, location, style);
-            match item.shortcut {
-                Some(shortcut) => {
-                    buffer.write_direct(
-                        &format!("({})", shortcut),
-                        shortcut_location,
-                        NORMAL_STYLE,
-                    );
-                }
-                None => {}
+            if let Some(shortcut) = item.shortcut {
+                buffer.write_direct(&format!("({})", shortcut), shortcut_location, NORMAL_STYLE);
             }
-            item_index += 1;
         }
     }
 }
 
 impl Window for Menu {
     fn get_origin(&self) -> Location {
-        return self.origin;
+        self.origin
     }
 
     fn get_size(&self) -> Size {
-        return self.size;
+        self.size
     }
 
     fn get_title(&self) -> String {
-        return self.title.clone();
+        self.title.clone()
     }
 }
 
@@ -2509,33 +2440,27 @@ impl HandleKey for YesNoDialog {
                     ..Event::new()
                 };
             }
-            Key::Enter => match self.menu_items.iter().nth(self.selected_index) {
-                Some(selected_item) => match (selected_item.callback)(selected_item) {
-                    Some(result) => {
+            Key::Enter => {
+                if let Some(selected_item) = self.menu_items.iter().nth(self.selected_index) {
+                    if let Some(result) = (selected_item.callback)(selected_item) {
                         return result;
                     }
-                    None => {}
-                },
-                None => {}
-            },
+                }
+            }
             Key::Left => {
                 if self.selected_index > 0 {
                     self.selected_index = (self.selected_index - 1) % self.menu_items.len();
                 } else {
                     self.selected_index = self.menu_items.len() - 1;
                 }
-                let mut item_index = 0;
-                for item in self.menu_items.iter_mut() {
+                for (item_index, item) in self.menu_items.iter_mut().enumerate() {
                     item.selected = item_index == self.selected_index;
-                    item_index += 1;
                 }
             }
             Key::Right => {
                 self.selected_index = (self.selected_index + 1) % self.menu_items.len();
-                let mut item_index = 0;
-                for item in self.menu_items.iter_mut() {
+                for (item_index, item) in self.menu_items.iter_mut().enumerate() {
                     item.selected = item_index == self.selected_index;
-                    item_index += 1;
                 }
             }
             // TODO: Shift+Tab currently not supported
@@ -2547,21 +2472,21 @@ impl HandleKey for YesNoDialog {
             }
         }
 
-        return Event::new();
+        Event::new()
     }
 }
 
 impl Window for YesNoDialog {
     fn get_origin(&self) -> Location {
-        return self.origin;
+        self.origin
     }
 
     fn get_size(&self) -> Size {
-        return self.size;
+        self.size
     }
 
     fn get_title(&self) -> String {
-        return self.title.clone();
+        self.title.clone()
     }
 }
 
@@ -2591,15 +2516,13 @@ impl Render for InputDialog {
         };
 
         let row_index = 0;
-        let mut text_index = 0;
-
         let all_text = format!(
             "{} {} ",
             self.text,
             if self.input == "" { " " } else { &self.input }
         );
 
-        for c in all_text.chars() {
+        for (text_index, c) in all_text.chars().enumerate() {
             let location = Location {
                 row: text_top_left.row + WINDOW_BORDER[0] + row_index + 1,
                 column: text_top_left.column + WINDOW_BORDER[1] + text_index,
@@ -2611,7 +2534,6 @@ impl Render for InputDialog {
                 NORMAL_STYLE
             };
             buffer.write_direct(&c.to_string(), location, style);
-            text_index += 1;
         }
 
         let count = self.menu_items.len();
@@ -2672,23 +2594,14 @@ impl HandleKey for InputDialog {
                 };
             }
             Key::Enter => {
-                match self.menu_items.iter_mut().nth(self.selected_index) {
-                    Some(selected_item) => {
-                        selected_item.file_path = self.input.clone();
-                        match (selected_item.callback)(selected_item) {
-                            Some(_) => {
-                                return Event {
-                                    window_event: Some(WindowEvent::close(
-                                        ControlType::InputDialog,
-                                        None,
-                                    )),
-                                    ..Event::new()
-                                };
-                            }
-                            None => {}
-                        }
+                if let Some(selected_item) = self.menu_items.iter_mut().nth(self.selected_index) {
+                    selected_item.file_path = self.input.clone();
+                    if (selected_item.callback)(selected_item).is_some() {
+                        return Event {
+                            window_event: Some(WindowEvent::close(ControlType::InputDialog, None)),
+                            ..Event::new()
+                        };
                     }
-                    None => {}
                 }
                 return Event {
                     window_event: Some(WindowEvent::close(ControlType::InputDialog, None)),
@@ -2701,18 +2614,14 @@ impl HandleKey for InputDialog {
                 } else {
                     self.selected_index = self.menu_items.len() - 1;
                 }
-                let mut item_index = 0;
-                for item in self.menu_items.iter_mut() {
+                for (item_index, item) in self.menu_items.iter_mut().enumerate() {
                     item.selected = item_index == self.selected_index;
-                    item_index += 1;
                 }
             }
             Key::Right => {
                 self.selected_index = (self.selected_index + 1) % self.menu_items.len();
-                let mut item_index = 0;
-                for item in self.menu_items.iter_mut() {
+                for (item_index, item) in self.menu_items.iter_mut().enumerate() {
                     item.selected = item_index == self.selected_index;
-                    item_index += 1;
                 }
             }
             _ => {
@@ -2720,21 +2629,21 @@ impl HandleKey for InputDialog {
             }
         }
 
-        return Event::new();
+        Event::new()
     }
 }
 
 impl Window for InputDialog {
     fn get_origin(&self) -> Location {
-        return self.origin;
+        self.origin
     }
 
     fn get_size(&self) -> Size {
-        return self.size;
+        self.size
     }
 
     fn get_title(&self) -> String {
-        return self.title.clone();
+        self.title.clone()
     }
 }
 
@@ -2786,13 +2695,13 @@ fn compare_items(item1: &FileItem, item2: &FileItem) -> Ordering {
         .path
         .as_path()
         .file_name()
-        .unwrap_or(std::ffi::OsStr::new(""));
+        .unwrap_or_else(|| std::ffi::OsStr::new(""));
     let path2_name = item2
         .path
         .as_path()
         .file_name()
-        .unwrap_or(std::ffi::OsStr::new(""));
-    return path1_name.partial_cmp(path2_name).unwrap();
+        .unwrap_or_else(|| std::ffi::OsStr::new(""));
+    path1_name.partial_cmp(path2_name).unwrap()
 }
 
 impl OpenFileMenu {
@@ -2810,10 +2719,10 @@ impl OpenFileMenu {
             });
         }
         children.sort_unstable_by(compare_items);
-        return Ok(children);
+        Ok(children)
     }
 
-    fn load_buffers(&self, buffers: &Vec<FileBuffer>) -> std::io::Result<Vec<FileItem>> {
+    fn load_buffers(&self, buffers: &[FileBuffer]) -> std::io::Result<Vec<FileItem>> {
         let mut loaded_buffers: Vec<FileItem> = Vec::new();
         for buffer in buffers {
             loaded_buffers.push(FileItem {
@@ -2821,11 +2730,11 @@ impl OpenFileMenu {
                 ..FileItem::new_buffer(buffer.buffer_id)
             });
         }
-        return Ok(loaded_buffers);
+        Ok(loaded_buffers)
     }
 
     fn height(&self, window_buffer: &Buffer) -> usize {
-        return window_buffer.size.rows - 2;
+        window_buffer.size.rows - 2
     }
 
     /**
@@ -2870,11 +2779,11 @@ impl OpenFileMenu {
             }
             count += 1;
         }
-        return count;
+        count
     }
 
     fn select_item(&mut self) -> Option<PathBuf> {
-        let item_option = self.items.get(self.selected_index).clone();
+        let item_option = self.items.get(self.selected_index);
         let selected_path: Option<PathBuf>;
         match item_option {
             Some(item) => {
@@ -2894,7 +2803,7 @@ impl OpenFileMenu {
                             .retain(|x| x.path.as_path().parent().unwrap() != item.path.as_path());
 
                         let loaded_items =
-                            self.load_directory(item.path.clone()).unwrap_or(Vec::new());
+                            self.load_directory(item.path.clone()).unwrap_or_default();
                         let index = self.selected_index + 1;
                         for (subindex, subitem) in loaded_items.iter().enumerate() {
                             items_copy.insert(index + subindex, subitem.clone())
@@ -2915,7 +2824,7 @@ impl OpenFileMenu {
                 selected_path = None;
             }
         }
-        return selected_path;
+        selected_path
     }
 }
 
@@ -2931,21 +2840,21 @@ struct FileItem {
 
 impl FileItem {
     fn new_file() -> Self {
-        return Self {
+        Self {
             expanded: false,
             is_dir: false,
             path: PathBuf::new(),
             buffer_id: None,
-        };
+        }
     }
 
     fn new_buffer(uuid: Uuid) -> Self {
-        return Self {
+        Self {
             expanded: false,
             is_dir: false,
             path: PathBuf::new(),
             buffer_id: Some(uuid),
-        };
+        }
     }
 }
 
@@ -3011,7 +2920,7 @@ impl HandleKey for OpenFileMenu {
                         None
                     };
                     return Event {
-                        open_file_event: open_file_event,
+                        open_file_event,
                         window_event: if some_path_selected {
                             Some(WindowEvent::close(ControlType::OpenFileMenu, None))
                         } else {
@@ -3039,7 +2948,7 @@ impl HandleKey for OpenFileMenu {
             }
             _ => {}
         }
-        return Event::new();
+        Event::new()
     }
 }
 
@@ -3090,7 +2999,7 @@ impl Render for OpenFileMenu {
                 item.path
                     .as_path()
                     .file_name()
-                    .unwrap_or(std::ffi::OsStr::new(""))
+                    .unwrap_or_else(|| std::ffi::OsStr::new(""))
                     .to_str()
             } else {
                 item.path.as_path().to_str()
@@ -3109,15 +3018,15 @@ impl Render for OpenFileMenu {
 
 impl Window for OpenFileMenu {
     fn get_origin(&self) -> Location {
-        return Location::new(0, 0);
+        Location::new(0, 0)
     }
 
     fn get_size(&self) -> Size {
-        return self.size;
+        self.size
     }
 
     fn get_title(&self) -> String {
-        return self.title.clone();
+        self.title.clone()
     }
 }
 
@@ -3166,7 +3075,7 @@ impl Editor {
     pub fn init(&mut self, output_mode: rustbox::OutputMode) -> Result<String, Box<dyn Error>> {
         unsafe {
             let init_options = InitOptions {
-                output_mode: output_mode,
+                output_mode,
                 ..Default::default()
             };
 
@@ -3216,55 +3125,33 @@ impl Editor {
             }
         }
 
-        if self.file_buffer_controls.is_empty() {
-            if self.create_empty_file_buffer().is_err() {
-                panic!("Failed creating an empty buffer.");
-            }
+        if self.file_buffer_controls.is_empty() && self.create_empty_file_buffer().is_err() {
+            panic!("Failed creating an empty buffer.");
         }
 
-        return Ok("".to_string());
+        Ok("".to_string())
     }
 
     fn find_renderable_control(&self, control_reference: ControlReference) -> Option<&dyn Render> {
         // get control by uuid
         let uuid = control_reference.uuid;
         match control_reference.control_type {
-            ControlType::FileBuffer => {
-                return get_renderable(&self.file_buffer_controls, uuid);
-            }
-            ControlType::Menu => {
-                return get_renderable(&self.menu_controls, uuid);
-            }
-            ControlType::YesNoDialog => {
-                return get_renderable(&self.input_dialog_controls, uuid);
-            }
-            ControlType::InputDialog => {
-                return get_renderable(&self.save_as_dialog_controls, uuid);
-            }
-            ControlType::UndoRedoOverlay => {
-                return get_renderable(&self.undo_redo_overlays, uuid);
-            }
-            ControlType::SelectionOverlay => {
-                return get_renderable(&self.selection_overlay_buffers, uuid);
-            }
-            ControlType::SearchOverlay => {
-                return get_renderable(&self.search_overlays, uuid);
-            }
-            ControlType::OpenFileMenu => {
-                return get_renderable(&self.open_file_controls, uuid);
-            }
+            ControlType::FileBuffer => get_renderable(&self.file_buffer_controls, uuid),
+            ControlType::Menu => get_renderable(&self.menu_controls, uuid),
+            ControlType::YesNoDialog => get_renderable(&self.input_dialog_controls, uuid),
+            ControlType::InputDialog => get_renderable(&self.save_as_dialog_controls, uuid),
+            ControlType::UndoRedoOverlay => get_renderable(&self.undo_redo_overlays, uuid),
+            ControlType::SelectionOverlay => get_renderable(&self.selection_overlay_buffers, uuid),
+            ControlType::SearchOverlay => get_renderable(&self.search_overlays, uuid),
+            ControlType::OpenFileMenu => get_renderable(&self.open_file_controls, uuid),
         }
     }
 
     fn is_displayed_on_top(&self, control_type: ControlType) -> bool {
         let control_reference_option = self.controls.last();
         match control_reference_option {
-            Some(control_reference) => {
-                return control_reference.control_type == control_type;
-            }
-            None => {
-                return false;
-            }
+            Some(control_reference) => control_reference.control_type == control_type,
+            None => false,
         }
     }
 
@@ -3274,9 +3161,8 @@ impl Editor {
             return None;
         }
 
-        return self
-            .file_buffer_controls
-            .get(&self.active_file_buffer.unwrap());
+        self.file_buffer_controls
+            .get(&self.active_file_buffer.unwrap())
     }
 
     #[allow(dead_code)]
@@ -3285,9 +3171,8 @@ impl Editor {
             return None;
         }
 
-        return self
-            .file_buffer_controls
-            .get_mut(&self.active_file_buffer.unwrap());
+        self.file_buffer_controls
+            .get_mut(&self.active_file_buffer.unwrap())
     }
 
     fn open_save_dialog(&mut self) {
@@ -3327,8 +3212,8 @@ impl Editor {
                 };
 
                 let save_dialog = YesNoDialog {
-                    text: String::from(format!("Save file? {}", active_file_buffer.file_path)),
-                    menu_items: menu_items,
+                    text: format!("Save file? {}", active_file_buffer.file_path),
+                    menu_items,
                     selected_index: 0,
                     title: String::from("Save Dialog"),
                     origin: top_left,
@@ -3401,9 +3286,9 @@ impl Editor {
 
                 let save_dialog = InputDialog {
                     text: String::from("Save file As?"),
-                    input: String::from(active_file_buffer.file_path.clone()),
+                    input: active_file_buffer.file_path.clone(),
                     input_location: active_file_buffer.file_path.len(),
-                    menu_items: menu_items,
+                    menu_items,
                     selected_index: 0,
                     title: String::from("Save Dialog"),
                     origin: top_left,
@@ -3467,16 +3352,13 @@ impl Editor {
         self.window_buffer.editor_size = self.window_buffer.size;
 
         // TODO: make alignment nicer
-        match self
+        if let Some(file_buffer) = self
             .file_buffer_controls
             .get_mut(&self.active_file_buffer.unwrap())
         {
-            Some(file_buffer) => {
-                file_buffer.coverage = None;
-                file_buffer.coverage_start = None;
-                file_buffer.coverage_end = None;
-            }
-            _ => {}
+            file_buffer.coverage = None;
+            file_buffer.coverage_start = None;
+            file_buffer.coverage_end = None;
         }
 
         // update editor buffer top left and size
@@ -3513,16 +3395,13 @@ impl Editor {
             .sort_unstable_by(|c1, c2| c1.priority.partial_cmp(&c2.priority).unwrap());
 
         // TODO: make alignment nicer
-        match self
+        if let Some(file_buffer) = self
             .file_buffer_controls
             .get_mut(&self.active_file_buffer.unwrap())
         {
-            Some(file_buffer) => {
-                file_buffer.coverage = Some(Coverage::FromTo);
-                file_buffer.align_buffer_vertical_up(&self.window_buffer);
-                file_buffer.align_buffer_vertical_down(&self.window_buffer);
-            }
-            _ => {}
+            file_buffer.coverage = Some(Coverage::FromTo);
+            file_buffer.align_buffer_vertical_up(&self.window_buffer);
+            file_buffer.align_buffer_vertical_down(&self.window_buffer);
         }
     }
 
@@ -3532,16 +3411,13 @@ impl Editor {
         self.window_buffer.editor_size = self.window_buffer.size;
 
         // TODO: make alignment nicer
-        match self
+        if let Some(file_buffer) = self
             .file_buffer_controls
             .get_mut(&self.active_file_buffer.unwrap())
         {
-            Some(file_buffer) => {
-                file_buffer.coverage = None;
-                file_buffer.coverage_start = None;
-                file_buffer.coverage_end = None;
-            }
-            _ => {}
+            file_buffer.coverage = None;
+            file_buffer.coverage_start = None;
+            file_buffer.coverage_end = None;
         }
 
         // update editor buffer top left and size
@@ -3786,11 +3662,8 @@ impl Editor {
         // deprioritise currently selected buffer
         if self.active_file_buffer != None {
             let active_uuid = self.active_file_buffer.unwrap();
-            match self.controls.iter_mut().find(|x| x.uuid == active_uuid) {
-                Some(control) => {
-                    control.priority = DEFAULT_FILE_BUFFER_PRIORITY;
-                }
-                None => {}
+            if let Some(control) = self.controls.iter_mut().find(|x| x.uuid == active_uuid) {
+                control.priority = DEFAULT_FILE_BUFFER_PRIORITY;
             }
         }
         self.active_file_buffer = Some(new_control_reference.uuid);
@@ -3799,27 +3672,22 @@ impl Editor {
 
     fn open_file_buffer(&mut self, pathbuf: PathBuf) -> Result<(), Box<dyn Error>> {
         let file_path = pathbuf.as_path();
-        match self
+        if let Some((uuid, _file_buffer)) = self
             .file_buffer_controls
             .iter_mut()
             .find(|(_key, value)| value.file_path == file_path.to_str().unwrap_or(""))
         {
-            Some((uuid, _file_buffer)) => {
-                for control in self.controls.iter_mut() {
-                    if control.uuid == *uuid {
-                        control.priority = VISIBLE_FILE_BUFFER_PRIORITY;
-                    } else {
-                        control.priority = DEFAULT_FILE_BUFFER_PRIORITY;
-                    }
+            for control in self.controls.iter_mut() {
+                if control.uuid == *uuid {
+                    control.priority = VISIBLE_FILE_BUFFER_PRIORITY;
+                } else {
+                    control.priority = DEFAULT_FILE_BUFFER_PRIORITY;
                 }
-                self.active_file_buffer = Some(*uuid);
-                self.controls
-                    .sort_unstable_by(|c1, c2| c1.priority.partial_cmp(&c2.priority).unwrap());
-                return Ok(());
             }
-            None => {
-                // continue as usual
-            }
+            self.active_file_buffer = Some(*uuid);
+            self.controls
+                .sort_unstable_by(|c1, c2| c1.priority.partial_cmp(&c2.priority).unwrap());
+            return Ok(());
         }
 
         let metadata = fs::metadata(file_path)?;
@@ -3875,11 +3743,8 @@ impl Editor {
         // deprioritise currently selected buffer
         if self.active_file_buffer != None {
             let active_uuid = self.active_file_buffer.unwrap();
-            match self.controls.iter_mut().find(|x| x.uuid == active_uuid) {
-                Some(control) => {
-                    control.priority = DEFAULT_FILE_BUFFER_PRIORITY;
-                }
-                None => {}
+            if let Some(control) = self.controls.iter_mut().find(|x| x.uuid == active_uuid) {
+                control.priority = DEFAULT_FILE_BUFFER_PRIORITY;
             }
         }
 
@@ -3902,34 +3767,32 @@ impl Editor {
                 let buffer = self.window_buffer;
                 match control_reference.control_type {
                     ControlType::FileBuffer => {
-                        return handle_key(&mut self.file_buffer_controls, uuid, ekey, buffer);
+                        handle_key(&mut self.file_buffer_controls, uuid, ekey, buffer)
                     }
-                    ControlType::Menu => {
-                        return handle_key(&mut self.menu_controls, uuid, ekey, buffer);
-                    }
+                    ControlType::Menu => handle_key(&mut self.menu_controls, uuid, ekey, buffer),
                     ControlType::OpenFileMenu => {
-                        return handle_key(&mut self.open_file_controls, uuid, ekey, buffer);
+                        handle_key(&mut self.open_file_controls, uuid, ekey, buffer)
                     }
                     ControlType::YesNoDialog => {
-                        return handle_key(&mut self.input_dialog_controls, uuid, ekey, buffer);
+                        handle_key(&mut self.input_dialog_controls, uuid, ekey, buffer)
                     }
                     ControlType::InputDialog => {
-                        return handle_key(&mut self.save_as_dialog_controls, uuid, ekey, buffer);
+                        handle_key(&mut self.save_as_dialog_controls, uuid, ekey, buffer)
                     }
                     ControlType::UndoRedoOverlay => {
-                        return handle_key(&mut self.undo_redo_overlays, uuid, ekey, buffer);
+                        handle_key(&mut self.undo_redo_overlays, uuid, ekey, buffer)
                     }
                     ControlType::SelectionOverlay => {
-                        return handle_key(&mut self.selection_overlay_buffers, uuid, ekey, buffer);
+                        handle_key(&mut self.selection_overlay_buffers, uuid, ekey, buffer)
                     }
                     ControlType::SearchOverlay => {
-                        return handle_key(&mut self.search_overlays, uuid, ekey, buffer);
+                        handle_key(&mut self.search_overlays, uuid, ekey, buffer)
                     }
                 }
             }
             _ => {
                 log::info!("No controls to be rendered");
-                return None;
+                None
             }
         }
     }
@@ -3949,10 +3812,8 @@ impl Editor {
             }
         }
 
-        if event.create_file_event.is_some() {
-            if self.create_empty_file_buffer().is_err() {
-                panic!("Failed creating an empty buffer.");
-            }
+        if event.create_file_event.is_some() && self.create_empty_file_buffer().is_err() {
+            panic!("Failed creating an empty buffer.");
         }
 
         if event.select_event.is_some() {
@@ -4010,32 +3871,21 @@ impl Editor {
             opened_file = true;
         }
 
-        match event.window_event {
-            Some(window_event) => {
-                match window_event.action {
-                    WindowAction::Open => {
-                        self.handle_open_window_event(window_event);
-                    }
-                    WindowAction::Close => {
-                        self.handle_close_window_event(window_event.clone());
-                        // TODO: add a nice way for dialogs to close main menu as well
-                        if opened_file {
-                            self.handle_close_window_event(WindowEvent::close(
-                                ControlType::Menu,
-                                None,
-                            ));
-                        } else if window_event.control_type == ControlType::YesNoDialog {
-                            self.handle_close_window_event(WindowEvent::close(
-                                ControlType::Menu,
-                                None,
-                            ));
-                        }
+        if let Some(window_event) = event.window_event {
+            match window_event.action {
+                WindowAction::Open => {
+                    self.handle_open_window_event(window_event);
+                }
+                WindowAction::Close => {
+                    self.handle_close_window_event(window_event.clone());
+                    // TODO: add a nice way for dialogs to close main menu as well
+                    if opened_file || window_event.control_type == ControlType::YesNoDialog {
+                        self.handle_close_window_event(WindowEvent::close(ControlType::Menu, None));
                     }
                 }
             }
-            None => {}
         }
-        return event.exit_event.is_none();
+        event.exit_event.is_none()
     }
 
     pub fn main_loop(&mut self) {
@@ -4086,7 +3936,7 @@ impl Editor {
                 panic!("Failed initializing RustBox.");
             }
         }
-        return true;
+        true
     }
 
     fn render(&mut self) {
@@ -4099,14 +3949,11 @@ impl Editor {
             Some(control_reference) => {
                 if control_reference.is_overlay() {
                     // render first one, TODO: handle multiple buffers
-                    match self
+                    if let Some(file_buffer) = self
                         .file_buffer_controls
                         .get_mut(&self.active_file_buffer.unwrap())
                     {
-                        Some(file_buffer) => {
-                            file_buffer.render(&self.window_buffer);
-                        }
-                        _ => {}
+                        file_buffer.render(&self.window_buffer);
                     }
                 }
                 match self.find_renderable_control(*control_reference) {
@@ -4135,7 +3982,7 @@ impl Editor {
 
 impl HandleEvent for Editor {
     fn handle_event(&self, _search_event: Event) -> Event {
-        return Event::new();
+        Event::new()
     }
 }
 
@@ -4171,7 +4018,7 @@ impl HandleWindowEvent for Editor {
                 self.open_search_overlay();
             }
         }
-        return Event::new();
+        Event::new()
     }
 
     fn handle_close_window_event(&mut self, window_event: WindowEvent) -> Event {
@@ -4216,24 +4063,20 @@ impl HandleWindowEvent for Editor {
                 self.close_search_overlay(control_id);
             }
         }
-        return Event::new();
+        Event::new()
     }
 }
 
 fn is_location_in_buffer(text_location: Location, view_location: Location, size: Size) -> bool {
-    if text_location.row >= view_location.row && text_location.column >= view_location.column {
-        if text_location.row < view_location.row + size.rows
-            && text_location.column < view_location.column + size.columns
-        {
-            return true;
-        }
-    }
-    return false;
+    text_location.row >= view_location.row
+        && text_location.column >= view_location.column
+        && text_location.row < view_location.row + size.rows
+        && text_location.column < view_location.column + size.columns
 }
 
 fn crop_location_with_buffer(text_location: Location, view_location: Location) -> Location {
-    return Location {
+    Location {
         row: text_location.row - view_location.row,
         column: text_location.column - view_location.column,
-    };
+    }
 }

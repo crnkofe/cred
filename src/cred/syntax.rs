@@ -37,14 +37,14 @@ pub struct RegexGroup {
 impl RegexGroup {
     fn raw(style: FontStyle, regexes: Vec<&str>) -> Self {
         Self {
-            style: style,
+            style,
             regexes: str_to_regex(regexes[..].to_vec()),
         }
     }
 
     fn keyword(style: FontStyle, regexes: Vec<&str>) -> Self {
         Self {
-            style: style,
+            style,
             regexes: str_to_word_regex(regexes[..].to_vec()),
         }
     }
@@ -76,7 +76,7 @@ impl Syntax {
                 }
             }
         }
-        return matches;
+        matches
     }
 }
 
@@ -90,20 +90,20 @@ fn str_to_regex(v: Vec<&str>) -> Vec<Regex> {
         }
         result.push(regex.unwrap());
     }
-    return result;
+    result
 }
 
 fn str_to_word_regex(v: Vec<&str>) -> Vec<Regex> {
     let mut result: Vec<Regex> = Vec::new();
     for item in v {
-        let regex = Regex::new(&String::from(format!("(\\b|\\s){}(\\b|\\s)", item)));
+        let regex = Regex::new(&format!("(\\b|\\s){}(\\b|\\s)", item));
         if regex.is_err() {
             log::warn!("Failed compiling regex: {:?}", regex);
             continue;
         }
         result.push(regex.unwrap());
     }
-    return result;
+    result
 }
 
 impl Syntax {
@@ -194,17 +194,11 @@ impl SyntaxHighlight {
             Some(osstr) => {
                 let extension = osstr.to_str();
                 match extension {
-                    Some(extension) => {
-                        return self.syntaxes.get(extension).unwrap_or(&no_syntax).clone();
-                    }
-                    _ => {
-                        return no_syntax.clone();
-                    }
+                    Some(extension) => self.syntaxes.get(extension).unwrap_or(&no_syntax).clone(),
+                    _ => no_syntax,
                 }
             }
-            _ => {
-                return no_syntax;
-            }
+            _ => no_syntax,
         }
     }
 }
