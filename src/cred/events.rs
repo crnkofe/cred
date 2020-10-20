@@ -1,18 +1,18 @@
-/** 
+/**
  * MIT License
- * 
+ *
  * Copyright (c) 2020 Simon Mihevc
- * 
+ *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
  * in the Software without restriction, including without limitation the rights
  * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
  * copies of the Software, and to permit persons to whom the Software is
  * furnished to do so, subject to the following conditions:
- * 
+ *
  * The above copyright notice and this permission notice shall be included in all
  * copies or substantial portions of the Software.
- * 
+ *
  * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
  * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
  * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
@@ -21,16 +21,15 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
  * SOFTWARE.
  */
-
-use std::path::PathBuf;
 use rustbox::ExtendedKey;
+use std::path::PathBuf;
 
 use uuid::Uuid;
 
+use super::common::Buffer;
 use super::common::ControlType;
 use super::common::Coverage;
 use super::common::UndoRedoAction;
-use super::common::{Buffer};
 
 #[derive(Clone, Debug)]
 pub enum WindowAction {
@@ -69,9 +68,7 @@ pub struct UndoEvent {
 }
 
 #[derive(Clone, Debug)]
-pub struct ExitEvent {
-
-}
+pub struct ExitEvent {}
 
 #[derive(Clone, Debug, PartialEq)]
 pub enum SearchDirection {
@@ -100,9 +97,7 @@ pub struct SelectEvent {
 }
 
 #[derive(Clone, Debug)]
-pub struct CreateFileEvent {
-
-}
+pub struct CreateFileEvent {}
 
 #[derive(Clone, Debug)]
 pub struct SaveFileEvent {
@@ -131,7 +126,7 @@ pub struct Event {
 
 impl Event {
     pub fn new() -> Self {
-        return Self{
+        return Self {
             handled: false,
             bubble_down: false,
             create_file_event: None,
@@ -143,11 +138,11 @@ impl Event {
             search_event: None,
             window_event: None,
             exit_event: None,
-        }
+        };
     }
 
     pub fn key(key: ExtendedKey) -> Self {
-        return Self{
+        return Self {
             handled: false,
             bubble_down: false,
             create_file_event: None,
@@ -159,7 +154,7 @@ impl Event {
             search_event: None,
             window_event: None,
             exit_event: None,
-        }
+        };
     }
 }
 
@@ -212,7 +207,7 @@ pub trait HandleWindowEvent {
  * Common trait for all visual controls
  */
 pub trait HandleKey {
-    fn handle_key(&mut self, _key : ExtendedKey, _window_buffer : Buffer) -> Event {
+    fn handle_key(&mut self, _key: ExtendedKey, _window_buffer: Buffer) -> Event {
         return Event::new();
     }
 }

@@ -1,18 +1,18 @@
 /**
  * MIT License
- * 
+ *
  * Copyright (c) 2020 Simon Mihevc
- * 
+ *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
  * in the Software without restriction, including without limitation the rights
  * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
  * copies of the Software, and to permit persons to whom the Software is
  * furnished to do so, subject to the following conditions:
- * 
+ *
  * The above copyright notice and this permission notice shall be included in all
  * copies or substantial portions of the Software.
- * 
+ *
  * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
  * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
  * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
@@ -21,10 +21,9 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
  * SOFTWARE.
  */
-
 extern crate rustbox;
 
-use rustbox::{Color};
+use rustbox::Color;
 use std::slice::Iter;
 
 /**
@@ -47,81 +46,80 @@ pub enum ControlType {
 
 #[derive(Clone, Debug)]
 pub struct FontStyle {
-    pub font_style: rustbox::Style, 
+    pub font_style: rustbox::Style,
     pub foreground_color: rustbox::Color,
     pub background_color: rustbox::Color,
 }
 
 impl FontStyle {
     pub fn select(&self) -> FontStyle {
-        return FontStyle{
+        return FontStyle {
             font_style: self.font_style,
             foreground_color: self.background_color,
             background_color: Color::White,
-        }
+        };
     }
 
     pub fn invert(&self) -> FontStyle {
-        return FontStyle{
+        return FontStyle {
             font_style: self.font_style,
             foreground_color: self.background_color,
             background_color: self.foreground_color,
-        }
+        };
     }
 }
 
-pub const NORMAL_STYLE : FontStyle = FontStyle{
-    font_style: rustbox::RB_NORMAL, 
-    foreground_color: Color::White, 
+pub const NORMAL_STYLE: FontStyle = FontStyle {
+    font_style: rustbox::RB_NORMAL,
+    foreground_color: Color::White,
     background_color: Color::Black,
 };
 
-pub const INVERSE_STYLE : FontStyle = FontStyle{
-    font_style: rustbox::RB_NORMAL, 
-    foreground_color: Color::Black, 
+pub const INVERSE_STYLE: FontStyle = FontStyle {
+    font_style: rustbox::RB_NORMAL,
+    foreground_color: Color::Black,
     background_color: Color::White,
 };
 
-pub const INVISIBLE_STYLE : FontStyle = FontStyle{
+pub const INVISIBLE_STYLE: FontStyle = FontStyle {
     font_style: rustbox::RB_NORMAL,
-    foreground_color: Color::Black, 
+    foreground_color: Color::Black,
     background_color: Color::Black,
 };
 
 /**
  * Data types
  */
-pub const KEYWORD_TYPE : FontStyle = FontStyle{
-    font_style: rustbox::RB_NORMAL, 
-    foreground_color: Color::Yellow, 
+pub const KEYWORD_TYPE: FontStyle = FontStyle {
+    font_style: rustbox::RB_NORMAL,
+    foreground_color: Color::Yellow,
     background_color: Color::Black,
 };
 
 /**
  * Module imports
  */
-pub const KEYWORD_IMPORT: FontStyle = FontStyle{
-    font_style: rustbox::RB_NORMAL, 
-    foreground_color: Color::Cyan, 
+pub const KEYWORD_IMPORT: FontStyle = FontStyle {
+    font_style: rustbox::RB_NORMAL,
+    foreground_color: Color::Cyan,
     background_color: Color::Black,
 };
 
 /**
  * Loop constructs (for, while, etc.)
  */
-pub const KEYWORD_LOOP: FontStyle = FontStyle{
-    font_style: rustbox::RB_NORMAL, 
-    foreground_color: Color::Blue, 
+pub const KEYWORD_LOOP: FontStyle = FontStyle {
+    font_style: rustbox::RB_NORMAL,
+    foreground_color: Color::Blue,
     background_color: Color::Black,
 };
-
 
 /**
  * Comments
  */
-pub const COMMENT: FontStyle = FontStyle{
-    font_style: rustbox::RB_NORMAL, 
-    foreground_color: Color::Magenta, 
+pub const COMMENT: FontStyle = FontStyle {
+    font_style: rustbox::RB_NORMAL,
+    foreground_color: Color::Magenta,
     background_color: Color::Black,
 };
 
@@ -140,9 +138,9 @@ impl Coverage {
             Coverage::FromTo,
             Coverage::Word,
             Coverage::Line,
-            Coverage::All
+            Coverage::All,
         ];
-        return COVERAGE_ALL.iter()
+        return COVERAGE_ALL.iter();
     }
 }
 
@@ -154,11 +152,8 @@ pub enum UndoRedoAction {
 
 impl UndoRedoAction {
     pub fn iter() -> Iter<'static, UndoRedoAction> {
-        static UNDOREDO_ALL: [UndoRedoAction; 2] = [
-            UndoRedoAction::Undo,
-            UndoRedoAction::Redo,
-        ];
-        return UNDOREDO_ALL.iter()
+        static UNDOREDO_ALL: [UndoRedoAction; 2] = [UndoRedoAction::Undo, UndoRedoAction::Redo];
+        return UNDOREDO_ALL.iter();
     }
 }
 
@@ -177,13 +172,13 @@ pub struct Buffer {
 }
 
 #[derive(Copy, Clone, Debug)]
-pub struct Size{
+pub struct Size {
     pub rows: usize,
     pub columns: usize,
 }
 
 impl Size {
-    pub fn new(rows: usize, columns:usize) -> Self {
+    pub fn new(rows: usize, columns: usize) -> Self {
         Self {
             rows: rows,
             columns: columns,
@@ -198,11 +193,10 @@ pub struct Location {
 }
 
 impl Location {
-     pub fn new(row: usize, column: usize) -> Self {
+    pub fn new(row: usize, column: usize) -> Self {
         Self {
             row: row,
             column: column,
         }
     }
 }
-

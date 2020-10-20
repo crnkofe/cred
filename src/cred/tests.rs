@@ -1,18 +1,18 @@
 /**
  * MIT License
- * 
+ *
  * Copyright (c) 2020 Simon Mihevc
- * 
+ *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
  * in the Software without restriction, including without limitation the rights
  * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
  * copies of the Software, and to permit persons to whom the Software is
  * furnished to do so, subject to the following conditions:
- * 
+ *
  * The above copyright notice and this permission notice shall be included in all
  * copies or substantial portions of the Software.
- * 
+ *
  * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
  * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
  * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
@@ -28,23 +28,23 @@ mod tests {
     use std::path::PathBuf;
 
     // Note this useful idiom: importing names from outer (for mod tests) scope.
-    use crate::cred::controls::{Editor, LineIndex, rabin_karp_search};
-    use crate::cred::events;
     use crate::cred::common;
+    use crate::cred::controls::{rabin_karp_search, Editor, LineIndex};
+    use crate::cred::events;
 
     use crate::cred::events::HandleSearchEvent;
-    use rustbox::{OutputMode, Event, ExtendedKey, Key, Modifiers};
+    use rustbox::{Event, ExtendedKey, Key, Modifiers, OutputMode};
 
     #[test]
     fn test_line_index_create() {
-        let index : LineIndex = LineIndex::new();
+        let index: LineIndex = LineIndex::new();
         assert_eq!(None, index.line(0));
         assert_eq!(0, index.len());
     }
 
     #[test]
     fn test_line_index_location() {
-        let mut index : LineIndex = LineIndex::new();
+        let mut index: LineIndex = LineIndex::new();
         for i in 1..4 {
             index.push_line(i);
         }
@@ -56,7 +56,7 @@ mod tests {
 
     #[test]
     fn test_line_index_add() {
-        let mut index : LineIndex = LineIndex::new();
+        let mut index: LineIndex = LineIndex::new();
         for i in 1..4 {
             index.push_line(i);
         }
@@ -72,7 +72,7 @@ mod tests {
 
     #[test]
     fn test_line_index_break_start() {
-        let mut index : LineIndex = LineIndex::new();
+        let mut index: LineIndex = LineIndex::new();
         index.push_line(10);
         index.break_line(0);
         assert_eq!(2, index.len());
@@ -86,7 +86,7 @@ mod tests {
 
     #[test]
     fn test_line_index_break_mid() {
-        let mut index : LineIndex = LineIndex::new();
+        let mut index: LineIndex = LineIndex::new();
         index.push_line(10);
         index.break_line(5);
         assert_eq!(2, index.len());
@@ -100,7 +100,7 @@ mod tests {
 
     #[test]
     fn test_line_index_break_before_end() {
-        let mut index : LineIndex = LineIndex::new();
+        let mut index: LineIndex = LineIndex::new();
         index.push_line(10);
         index.break_line(9);
         assert_eq!(2, index.len());
@@ -114,7 +114,7 @@ mod tests {
 
     #[test]
     fn test_line_index_break_beyond_end() {
-        let mut index : LineIndex = LineIndex::new();
+        let mut index: LineIndex = LineIndex::new();
         index.push_line(10);
         index.break_line(10);
         assert_eq!(2, index.len());
@@ -128,7 +128,7 @@ mod tests {
 
     #[test]
     fn test_line_index_insert_char() {
-        let mut index : LineIndex = LineIndex::new();
+        let mut index: LineIndex = LineIndex::new();
         index.push_line(10);
         assert_eq!(Some(10), index.line_length(0));
         index.insert_character_at(0);
@@ -139,7 +139,7 @@ mod tests {
 
     #[test]
     fn test_line_index_remove_char() {
-        let mut index : LineIndex = LineIndex::new();
+        let mut index: LineIndex = LineIndex::new();
         index.push_line(10);
         assert_eq!(Some(10), index.line_length(0));
         index.remove_character_at(0);
@@ -148,7 +148,7 @@ mod tests {
 
     #[test]
     fn test_line_index_remove_line() {
-        let mut index : LineIndex = LineIndex::new();
+        let mut index: LineIndex = LineIndex::new();
         for i in 1..4 {
             index.push_line(i);
         }
@@ -212,8 +212,8 @@ mod tests {
         let mut editor = Editor::new();
         assert_eq!(true, editor.init(OutputMode::NoOutput).is_ok());
 
-        let open_this_test = events::Event{
-            open_file_event: Some(events::OpenFileEvent{
+        let open_this_test = events::Event {
+            open_file_event: Some(events::OpenFileEvent {
                 path: PathBuf::from("./src/cred/tests.rs"),
             }),
             ..events::Event::new()
@@ -231,8 +231,13 @@ mod tests {
         let mut editor = Editor::new();
         assert_eq!(true, editor.init(OutputMode::NoOutput).is_ok());
 
-        let event_menu = Event::KeyEvent(ExtendedKey::new(Key::Char('d'),
-            Modifiers{ctrl: true, ..Modifiers::new()}));
+        let event_menu = Event::KeyEvent(ExtendedKey::new(
+            Key::Char('d'),
+            Modifiers {
+                ctrl: true,
+                ..Modifiers::new()
+            },
+        ));
         let exit_shortcut = Event::KeyEvent(ExtendedKey::new(Key::Char('x'), Modifiers::new()));
 
         assert_eq!(true, editor.handle_event_option(Some(Ok(event_menu))));
@@ -262,8 +267,8 @@ mod tests {
         let mut editor = Editor::new();
         assert_eq!(true, editor.init(OutputMode::NoOutput).is_ok());
 
-        let open_this_test = events::Event{
-            open_file_event: Some(events::OpenFileEvent{
+        let open_this_test = events::Event {
+            open_file_event: Some(events::OpenFileEvent {
                 path: PathBuf::from("./src/cred/tests.rs"),
             }),
             ..events::Event::new()
@@ -272,7 +277,7 @@ mod tests {
         assert_eq!(2, editor.file_buffer_controls.len());
 
         let file_buffer = editor.get_active_file_buffer_mut().unwrap();
-        let search_event = events::SearchEvent{
+        let search_event = events::SearchEvent {
             direction: events::SearchDirection::Forward,
             pattern: "test_editor_search".to_string(),
         };
@@ -294,11 +299,19 @@ mod tests {
             assert_eq!(true, editor.handle_event_option(Some(Ok(event))));
         }
 
-        let undo_overlay_menu = Event::KeyEvent(ExtendedKey::new(Key::Char('z'),
-            Modifiers{ctrl: true, ..Modifiers::new()}));
+        let undo_overlay_menu = Event::KeyEvent(ExtendedKey::new(
+            Key::Char('z'),
+            Modifiers {
+                ctrl: true,
+                ..Modifiers::new()
+            },
+        ));
         let undo_ok = Event::KeyEvent(ExtendedKey::new(Key::Enter, Modifiers::new()));
 
-        assert_eq!(true, editor.handle_event_option(Some(Ok(undo_overlay_menu))));
+        assert_eq!(
+            true,
+            editor.handle_event_option(Some(Ok(undo_overlay_menu)))
+        );
         assert_eq!(true, editor.handle_event_option(Some(Ok(undo_ok))));
 
         let file_buffer = editor.get_active_file_buffer_mut().unwrap();
@@ -317,16 +330,27 @@ mod tests {
             assert_eq!(true, editor.handle_event_option(Some(Ok(event))));
         }
 
-        let undo_overlay_menu = Event::KeyEvent(ExtendedKey::new(Key::Char('z'),
-            Modifiers{ctrl: true, ..Modifiers::new()}));
+        let undo_overlay_menu = Event::KeyEvent(ExtendedKey::new(
+            Key::Char('z'),
+            Modifiers {
+                ctrl: true,
+                ..Modifiers::new()
+            },
+        ));
         let undo_ok = Event::KeyEvent(ExtendedKey::new(Key::Enter, Modifiers::new()));
 
-        assert_eq!(true, editor.handle_event_option(Some(Ok(undo_overlay_menu))));
+        assert_eq!(
+            true,
+            editor.handle_event_option(Some(Ok(undo_overlay_menu)))
+        );
         assert_eq!(true, editor.handle_event_option(Some(Ok(undo_ok))));
 
         let redo = Event::KeyEvent(ExtendedKey::new(Key::Tab, Modifiers::new()));
         let redo_ok = Event::KeyEvent(ExtendedKey::new(Key::Enter, Modifiers::new()));
-        assert_eq!(true, editor.handle_event_option(Some(Ok(undo_overlay_menu))));
+        assert_eq!(
+            true,
+            editor.handle_event_option(Some(Ok(undo_overlay_menu)))
+        );
         assert_eq!(true, editor.handle_event_option(Some(Ok(redo))));
         assert_eq!(true, editor.handle_event_option(Some(Ok(redo_ok))));
 

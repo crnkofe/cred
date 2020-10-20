@@ -1,0 +1,26 @@
+name: Rust Example
+
+on: [push]
+
+jobs:
+  unit-test:
+    name: Run unit tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v1
+
+      - name: Run formatter 
+        uses: icepuma/rust-action@master
+        with:
+          args: cargo fmt -- --check
+
+      - name: Run clippy
+        uses: icepuma/rust-action@master
+        with:
+          args: cargo clippy -- -Dwarnings 
+
+      - name: Run unit tests
+        uses: icepuma/rust-action@master
+        with:
+          args: cargo test
