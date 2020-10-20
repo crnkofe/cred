@@ -60,6 +60,17 @@ impl FontStyle {
         }
     }
 
+    /**
+     * If text pointer is on also selected portion of text
+     */
+    pub fn select_pointer(&self) -> FontStyle {
+        FontStyle {
+            font_style: self.font_style,
+            foreground_color: self.background_color,
+            background_color: Color::Blue,
+        }
+    }
+
     pub fn invert(&self) -> FontStyle {
         FontStyle {
             font_style: self.font_style,
@@ -129,16 +140,14 @@ pub enum Coverage {
     FromTo,
     Word,
     Line,
-    All,
 }
 
 impl Coverage {
     pub fn iter() -> Iter<'static, Coverage> {
-        static COVERAGE_ALL: [Coverage; 4] = [
+        static COVERAGE_ALL: [Coverage; 3] = [
             Coverage::FromTo,
             Coverage::Word,
             Coverage::Line,
-            Coverage::All,
         ];
         COVERAGE_ALL.iter()
     }
