@@ -35,7 +35,7 @@ use std::path::PathBuf;
 use unicode_segmentation::UnicodeSegmentation;
 use uuid::Uuid;
 
-use std::time::Duration;
+use std::time::{Instant, Duration};
 
 use std::collections::HashMap;
 use std::collections::LinkedList;
@@ -1140,7 +1140,6 @@ impl FileBuffer {
         /*
          * TODO: Handle remaining chars
          * Char(char),
-         * Ctrl(char),
          * F(u32),
          * Unknown(u16),
          */
@@ -1614,7 +1613,9 @@ impl HandleSearchEvent for FileBuffer {
     fn handle_search_event(&mut self, search_event: SearchEvent, window_buffer: Buffer) -> Event {
         if search_event.pattern != self.pattern {
             self.pattern = search_event.pattern.clone();
+            let now = Instant::now();
             self.matches = rabin_karp_search(search_event.pattern, &self.contents, 101);
+            log::info!("Search time: {:?}", Instant::now().duration_since(now));
             self.set_match_index(0, window_buffer);
         } else if !self.matches.is_empty() {
             let mut new_match = self.current_match;
@@ -1965,7 +1966,12 @@ impl HandleKey for SearchOverlay {
                 return Event::new();
             }
             Key::Char(c) => {
-                if !self.pattern_read_only {
+                if ekey.modifiers.ctrl && c == CTRL_MENU_SHORTCUT {
+                    return Event {
+                        window_event: Some(WindowEvent::close(ControlType::SearchOverlay, None)),
+                        ..Event::new()
+                    };
+                } else if !self.pattern_read_only {
                     self.pattern.insert(self.pattern_location, c);
                     self.pattern_location += 1;
                 } else if c == SEARCH_FORWARD_SHORTCUT {
