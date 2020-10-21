@@ -1936,9 +1936,6 @@ struct SearchOverlay {
     pattern_read_only: bool,
     pattern_location: usize,
     pattern: String,
-
-    search_backward: bool,
-    search_forward: bool,
 }
 
 impl SearchOverlay {
@@ -1991,8 +1988,6 @@ impl HandleKey for SearchOverlay {
                     self.pattern.insert(self.pattern_location, c);
                     self.pattern_location += 1;
                 } else if c == SEARCH_FORWARD_SHORTCUT {
-                    self.search_forward = true;
-                    self.search_backward = false;
                     return Event {
                         search_event: Some(SearchEvent {
                             direction: SearchDirection::Forward,
@@ -2001,8 +1996,6 @@ impl HandleKey for SearchOverlay {
                         ..Event::new()
                     };
                 } else if c == SEARCH_BACKWARD_SHORTCUT {
-                    self.search_forward = false;
-                    self.search_backward = true;
                     return Event {
                         search_event: Some(SearchEvent {
                             direction: SearchDirection::Backward,
@@ -3488,8 +3481,6 @@ impl Editor {
             pattern_read_only: false,
             pattern_location: 0,
             pattern: String::from(""),
-            search_backward: false,
-            search_forward: false,
         };
 
         self.window_buffer.editor_top_left = Location::new(overlay.get_size().rows, 0);
