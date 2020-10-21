@@ -35,7 +35,7 @@ use std::path::PathBuf;
 use unicode_segmentation::UnicodeSegmentation;
 use uuid::Uuid;
 
-use std::time::{Instant, Duration};
+use std::time::{Duration, Instant};
 
 use std::collections::HashMap;
 use std::collections::LinkedList;
@@ -1290,6 +1290,7 @@ impl FileBuffer {
                     || (index <= self.coverage_start.unwrap_or(0) && index >= self.text_location);
             }
         }
+
         false
     }
 
