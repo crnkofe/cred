@@ -26,17 +26,43 @@
 mod tests {
 
     use std::path::PathBuf;
+    use std::sync::Once;
 
     // Note this useful idiom: importing names from outer (for mod tests) scope.
     use crate::cred::common;
     use crate::cred::controls::{rabin_karp_search, Editor, LineIndex};
     use crate::cred::events;
 
+    use log::LevelFilter;
+    use log4rs::append::console::ConsoleAppender;
+    use log4rs::config::{Appender, Config, Root};
+    use log4rs::encode::pattern::PatternEncoder;
+    use std::error::Error;
+
     use crate::cred::events::HandleSearchEvent;
     use rustbox::{Event, ExtendedKey, Key, Modifiers, OutputMode};
 
+    static LOG_INIT: Once = Once::new();
+
+    pub fn setup() -> Result<(), Box<dyn Error>> {
+        LOG_INIT.call_once(|| {
+            // configure logging
+            let logfile = ConsoleAppender::builder()
+                .encoder(Box::new(PatternEncoder::new("{l} - {m}\n")))
+                .build();
+
+            let config = Config::builder()
+                .appender(Appender::builder().build("console", Box::new(logfile)))
+                .build(Root::builder().appender("console").build(LevelFilter::Info));
+
+            log4rs::init_config(config.unwrap()).unwrap();
+        });
+        Ok(())
+    }
+
     #[test]
     fn test_line_index_create() {
+        assert_eq!(true, setup().is_ok());
         let index: LineIndex = LineIndex::new();
         assert_eq!(None, index.line(0));
         assert_eq!(0, index.len());
@@ -44,6 +70,7 @@ mod tests {
 
     #[test]
     fn test_line_index_location() {
+        assert_eq!(true, setup().is_ok());
         let mut index: LineIndex = LineIndex::new();
         for i in 1..4 {
             index.push_line(i);
@@ -56,6 +83,7 @@ mod tests {
 
     #[test]
     fn test_line_index_add() {
+        assert_eq!(true, setup().is_ok());
         let mut index: LineIndex = LineIndex::new();
         for i in 1..4 {
             index.push_line(i);
@@ -72,6 +100,7 @@ mod tests {
 
     #[test]
     fn test_line_index_break_start() {
+        assert_eq!(true, setup().is_ok());
         let mut index: LineIndex = LineIndex::new();
         index.push_line(10);
         index.break_line(0);
@@ -86,6 +115,7 @@ mod tests {
 
     #[test]
     fn test_line_index_break_mid() {
+        assert_eq!(true, setup().is_ok());
         let mut index: LineIndex = LineIndex::new();
         index.push_line(10);
         index.break_line(5);
@@ -100,6 +130,7 @@ mod tests {
 
     #[test]
     fn test_line_index_break_before_end() {
+        assert_eq!(true, setup().is_ok());
         let mut index: LineIndex = LineIndex::new();
         index.push_line(10);
         index.break_line(9);
@@ -114,6 +145,7 @@ mod tests {
 
     #[test]
     fn test_line_index_break_beyond_end() {
+        assert_eq!(true, setup().is_ok());
         let mut index: LineIndex = LineIndex::new();
         index.push_line(10);
         index.break_line(10);
@@ -128,6 +160,7 @@ mod tests {
 
     #[test]
     fn test_line_index_insert_char() {
+        assert_eq!(true, setup().is_ok());
         let mut index: LineIndex = LineIndex::new();
         index.push_line(10);
         assert_eq!(Some(10), index.line_length(0));
@@ -139,6 +172,7 @@ mod tests {
 
     #[test]
     fn test_line_index_remove_char() {
+        assert_eq!(true, setup().is_ok());
         let mut index: LineIndex = LineIndex::new();
         index.push_line(10);
         assert_eq!(Some(10), index.line_length(0));
@@ -148,6 +182,7 @@ mod tests {
 
     #[test]
     fn test_line_index_remove_line() {
+        assert_eq!(true, setup().is_ok());
         let mut index: LineIndex = LineIndex::new();
         for i in 1..4 {
             index.push_line(i);
@@ -167,6 +202,7 @@ mod tests {
 
     #[test]
     fn test_rabin_karp() {
+        assert_eq!(true, setup().is_ok());
         let test_string = "Lorem ipsum dolor sit amet,\
         consectetur adipiscing elit, sed do eiusmod tempor \
         incididunt ut labore et dolore magna aliqua. \
@@ -185,6 +221,7 @@ mod tests {
 
     #[test]
     fn test_editor_create_file() {
+        assert_eq!(true, setup().is_ok());
         let mut editor = Editor::new();
         assert_eq!(true, editor.init(OutputMode::NoOutput).is_ok());
         // initially one buffer is created
@@ -193,6 +230,7 @@ mod tests {
 
     #[test]
     fn test_editor_edit_file() {
+        assert_eq!(true, setup().is_ok());
         let mut editor = Editor::new();
         assert_eq!(true, editor.init(OutputMode::NoOutput).is_ok());
 
@@ -209,6 +247,7 @@ mod tests {
 
     #[test]
     fn test_editor_open_file() {
+        assert_eq!(true, setup().is_ok());
         let mut editor = Editor::new();
         assert_eq!(true, editor.init(OutputMode::NoOutput).is_ok());
 
@@ -228,6 +267,7 @@ mod tests {
 
     #[test]
     fn test_editor_exit() {
+        assert_eq!(true, setup().is_ok());
         let mut editor = Editor::new();
         assert_eq!(true, editor.init(OutputMode::NoOutput).is_ok());
 
@@ -246,6 +286,7 @@ mod tests {
 
     #[test]
     fn test_editor_copy_paste() {
+        assert_eq!(true, setup().is_ok());
         let mut editor = Editor::new();
         assert_eq!(true, editor.init(OutputMode::NoOutput).is_ok());
         assert_eq!(1, editor.file_buffer_controls.len());
@@ -264,6 +305,7 @@ mod tests {
 
     #[test]
     fn test_editor_search() {
+        assert_eq!(true, setup().is_ok());
         let mut editor = Editor::new();
         assert_eq!(true, editor.init(OutputMode::NoOutput).is_ok());
 
@@ -290,6 +332,7 @@ mod tests {
 
     #[test]
     fn test_editor_undo() {
+        assert_eq!(true, setup().is_ok());
         let mut editor = Editor::new();
         assert_eq!(true, editor.init(OutputMode::NoOutput).is_ok());
 
@@ -321,6 +364,7 @@ mod tests {
 
     #[test]
     fn test_editor_redo() {
+        assert_eq!(true, setup().is_ok());
         let mut editor = Editor::new();
         assert_eq!(true, editor.init(OutputMode::NoOutput).is_ok());
 
