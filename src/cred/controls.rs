@@ -1291,6 +1291,10 @@ impl FileBuffer {
             }
         }
 
+        if self.pattern != "" {
+            return self.matches.iter().any(|x| *x <= index && *x+self.pattern.len() > index);
+        }
+
         false
     }
 
@@ -1937,14 +1941,24 @@ struct SearchOverlay {
     search_forward: bool,
 }
 
+impl SearchOverlay {
+    fn create_close_event(&self) -> Event {
+        Event {
+            window_event: Some(WindowEvent::close(ControlType::SearchOverlay, None)),
+            search_event: Some(SearchEvent {
+                direction: SearchDirection::Forward,
+                pattern: "".to_string(),
+            }),
+            ..Event::new()
+        }
+    }
+}
+
 impl HandleKey for SearchOverlay {
     fn handle_key(&mut self, ekey: ExtendedKey, _window_buffer: Buffer) -> Event {
         match ekey.key {
             Key::Esc => {
-                return Event {
-                    window_event: Some(WindowEvent::close(ControlType::SearchOverlay, None)),
-                    ..Event::new()
-                };
+                return self.create_close_event();
             }
             Key::Enter => {
                 self.pattern_read_only = true;
@@ -1968,10 +1982,11 @@ impl HandleKey for SearchOverlay {
             }
             Key::Char(c) => {
                 if ekey.modifiers.ctrl && c == CTRL_MENU_SHORTCUT {
-                    return Event {
-                        window_event: Some(WindowEvent::close(ControlType::SearchOverlay, None)),
-                        ..Event::new()
-                    };
+                    return self.create_close_event();
+                } else if ekey.modifiers.ctrl && c == CTRL_SEARCH_SHORTCUT {
+                    self.pattern_read_only = false;
+                    self.pattern_location = 0;
+                    self.pattern = "".to_string();
                 } else if !self.pattern_read_only {
                     self.pattern.insert(self.pattern_location, c);
                     self.pattern_location += 1;
@@ -2043,7 +2058,10 @@ impl HandleKey for SearchOverlay {
                 return Event::new();
             }
             _ => {
-                // skip unknown chars
+                return Event {
+                    window_event: Some(WindowEvent::close(ControlType::SearchOverlay, None)),
+                    ..Event::new()
+                };
             }
         }
         Event {
