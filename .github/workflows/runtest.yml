@@ -1,4 +1,4 @@
-name: Rust Example
+name: Formatting and Unit tests
 
 on: [push]
 
@@ -23,4 +23,4 @@ jobs:
       - name: Run unit tests
         uses: docker://crnkofe/rust-base:latest
         with:
-          args: cargo b -vv
+          args: RUSTFLAGS='-L native=/usr/local/lib/libtermbox.a' cargo test

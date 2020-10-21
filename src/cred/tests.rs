@@ -337,8 +337,8 @@ mod tests {
                 ..Modifiers::new()
             },
         ));
-        let undo_ok = Event::KeyEvent(ExtendedKey::new(Key::Enter, Modifiers::new()));
 
+        let undo_ok = Event::KeyEvent(ExtendedKey::new(Key::Enter, Modifiers::new()));
         assert_eq!(
             true,
             editor.handle_event_option(Some(Ok(undo_overlay_menu)))

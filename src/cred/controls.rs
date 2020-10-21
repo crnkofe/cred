@@ -1292,7 +1292,10 @@ impl FileBuffer {
         }
 
         if self.pattern != "" {
-            return self.matches.iter().any(|x| *x <= index && *x+self.pattern.len() > index);
+            return self
+                .matches
+                .iter()
+                .any(|x| *x <= index && *x + self.pattern.len() > index);
         }
 
         false
@@ -3559,8 +3562,8 @@ impl Editor {
             column: self.window_buffer.size.columns / 2,
         };
         let top_left = Location {
-            row: center.row - menu_size.rows / 2,
-            column: center.column - menu_size.columns / 2,
+            row: center.row.saturating_sub(menu_size.rows / 2),
+            column: center.column.saturating_sub(menu_size.columns / 2),
         };
 
         let top_level_menu = Menu {
