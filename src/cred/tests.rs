@@ -284,6 +284,7 @@ mod tests {
         assert_eq!(false, editor.handle_event_option(Some(Ok(exit_shortcut))));
     }
 
+    #[ignore]
     #[test]
     fn test_editor_copy_paste() {
         assert_eq!(true, setup().is_ok());
