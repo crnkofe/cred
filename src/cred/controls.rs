@@ -66,7 +66,7 @@ const SPACE: char = ' ';
 const NEWLINE: char = '\n';
 const TAB: char = '\t';
 
-const OPEN_FILE_PRIORITY: usize = 1000;
+const OPEN_FILE_PRIORITY: usize = 600;
 const MENU_PRIORITY: usize = 500;
 const VISIBLE_FILE_BUFFER_PRIORITY: usize = 200;
 const DEFAULT_FILE_BUFFER_PRIORITY: usize = 100;
@@ -1939,6 +1939,9 @@ struct SearchOverlay {
     pattern_read_only: bool,
     pattern_location: usize,
     pattern: String,
+
+    // if filter mode search overlay should filter underlying content
+    filter_mode: bool,
 }
 
 impl SearchOverlay {
@@ -2878,6 +2881,7 @@ impl OpenFileMenu {
         }
         selected_path
     }
+
 }
 
 #[derive(Clone, Debug)]
@@ -2992,6 +2996,14 @@ impl HandleKey for OpenFileMenu {
                     };
                 }
             },
+            Key::Char(CTRL_SEARCH_SHORTCUT) => {
+                if ekey.modifiers.ctrl {
+                    return Event {
+                        window_event: Some(WindowEvent::open(ControlType::SearchOverlay)),
+                        ..Event::key(ekey)
+                    }
+                }
+            },
             Key::Esc => {
                 return Event {
                     window_event: Some(WindowEvent::close(ControlType::OpenFileMenu, None)),
@@ -3025,11 +3037,15 @@ impl Render for OpenFileMenu {
             count += 1;
         }
 
+        let top_left: Location = Location::new(
+            self.get_origin().row + buffer.editor_top_left.row,
+            self.get_origin().column + buffer.editor_top_left.column,
+        );
+
         for (item_index, item) in items_to_render.iter().enumerate() {
             let padding_top_left = [1, 1];
             let row_spacing = 0;
 
-            let top_left = self.get_origin();
             let row = top_left.row + WINDOW_BORDER[0] + item_index + row_spacing * (item_index + 1);
             let column = top_left.column + WINDOW_BORDER[1] + padding_top_left[1];
             let location = Location::new(row, column);
@@ -3478,7 +3494,7 @@ impl Editor {
             .retain(|c| c.control_type != ControlType::SelectionOverlay);
     }
 
-    fn open_search_overlay(&mut self) {
+    fn open_search_overlay(&mut self, filter_mode: bool) {
         if self.is_displayed_on_top(ControlType::SearchOverlay) {
             return;
         }
@@ -3490,6 +3506,7 @@ impl Editor {
             pattern_read_only: false,
             pattern_location: 0,
             pattern: String::from(""),
+            filter_mode,
         };
 
         self.window_buffer.editor_top_left = Location::new(overlay.get_size().rows, 0);
@@ -3499,8 +3516,13 @@ impl Editor {
             self.window_buffer.size.columns,
         );
 
+        let mut priority = 500;
+        if !self.controls.is_empty() {
+            priority = self.controls.last().unwrap().priority + 100;
+        }
+
         // when user is on editor and presses escape show top level menu
-        let new_control_reference = ControlReference::new(ControlType::SearchOverlay, 500);
+        let new_control_reference = ControlReference::new(ControlType::SearchOverlay, priority);
         self.search_overlays
             .insert(new_control_reference.uuid, overlay);
         self.controls.push(new_control_reference);
@@ -3998,14 +4020,20 @@ impl Editor {
         match control_reference_option {
             Some(control_reference) => {
                 if control_reference.is_overlay() {
-                    // render first one, TODO: handle multiple buffers
-                    if let Some(file_buffer) = self
-                        .file_buffer_controls
-                        .get_mut(&self.active_file_buffer.unwrap())
-                    {
+                    // check if underlying control is open file and render it instead
+                    if self.controls.len() > 2 
+                        && self.controls[self.controls.len()-2].control_type == ControlType::OpenFileMenu {
+                        let open_file_control = self.controls[self.controls.len()-2];
+
+                        self.open_file_controls[&open_file_control.uuid].render(&self.window_buffer);
+                    } else if let Some(file_buffer) = self
+                            .file_buffer_controls
+                            .get_mut(&self.active_file_buffer.unwrap()) {
+                            // render first one, TODO: handle multiple buffers
                         file_buffer.render(&self.window_buffer);
                     }
                 }
+
                 match self.find_renderable_control(*control_reference) {
                     Some(renderable_control) => {
                         renderable_control.render(&self.window_buffer);
@@ -4065,7 +4093,7 @@ impl HandleWindowEvent for Editor {
                 self.open_select_overlay();
             }
             ControlType::SearchOverlay => {
-                self.open_search_overlay();
+                self.open_search_overlay(false);
             }
         }
         Event::new()
