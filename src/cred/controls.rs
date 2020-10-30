@@ -212,6 +212,7 @@ trait Window {
         // TODO: render bottom or top and with different styles
         // write title with the following offset
         let title_offset = 2;
+        let title_row_offset = buffer.editor_top_left.row;
 
         let top_left = self.get_origin();
         let size = self.get_size();
@@ -223,7 +224,7 @@ trait Window {
             for column in top_left.column..top_left.column + size.columns {
                 let location = Location::new(row, column);
                 let column_index = column - top_left.column;
-                if row == top_left.row
+                if row == top_left.row + title_row_offset
                     && column_index >= title_offset
                     && column_index < (title_offset + title.len())
                 {
@@ -237,7 +238,8 @@ trait Window {
                         }
                     }
                     buffer.write_direct(&char_string, location, NORMAL_STYLE);
-                } else if row == top_left.row || row == top_left.row + size.rows - 1 {
+                } else if row == top_left.row
+                    || row == top_left.row + size.rows - 1 {
                     buffer.write_direct(&String::from(dash), location, NORMAL_STYLE);
                 } else if column == top_left.column || column == top_left.column + size.columns - 1
                 {
@@ -2073,7 +2075,7 @@ impl HandleKey for SearchOverlay {
 impl Render for SearchOverlay {
     fn render(&self, buffer: &Buffer) {
         self.render_window(buffer);
-        let label = String::from("Search: ");
+        let label = format!("{}: ", self.title);
 
         let padding_top_left = [1, 1];
         let top_left = self.get_origin();
@@ -3501,7 +3503,7 @@ impl Editor {
 
         // TODO: set selection state on filebuffer
         let overlay = SearchOverlay {
-            title: String::from("Search"),
+            title: if filter_mode { String::from("Filter") } else { String::from("Search") },
             size: Size::new(3, self.window_buffer.size.columns),
             pattern_read_only: false,
             pattern_location: 0,
