@@ -142,8 +142,8 @@ impl Syntax {
         Self {
             file_type: String::from("rs"),
             regex_groups: vec![
-                RegexGroup::raw(COMMENT, vec![r"(\s|\w)/[\*]{1}(?ms:.*?)[\*]{1}/(\b|\s)"]),
-                RegexGroup::raw(COMMENT, vec![r"(\s|\w)//.+\b"]),
+                RegexGroup::raw(COMMENT, vec![r"(\s|\w|^)/[*]{1}[*]?(?ms:.*?)[\*]{1}/(\b|\s)"]),
+                RegexGroup::raw(COMMENT, vec![r"(\s|\w|^)//.+\b"]),
                 RegexGroup::keyword(
                     KEYWORD_IMPORT,
                     vec![
