@@ -2855,8 +2855,17 @@ impl OpenFileMenu {
                             items_copy.insert(index + subindex, subitem.clone())
                         }
                     } else {
-                        items_copy
-                            .retain(|x| x.path.as_path().parent().unwrap() != item.path.as_path());
+                        let item_path = String::from(item.path.as_path().to_str().unwrap_or(""));
+                        items_copy.retain(|x| {
+                            item_path == x.path.to_str().unwrap_or("")
+                                || !String::from(
+                                    x.path.as_path().to_str().unwrap_or(&String::from("")),
+                                )
+                                .starts_with(&item_path)
+                        });
+                        for x in &items_copy[..] {
+                            log::info!("{:?} {:?}", item.path.as_path(), x.path.as_path().parent());
+                        }
                     }
                     items_copy[self.selected_index] = replacement_item;
                     self.items.truncate(0);
