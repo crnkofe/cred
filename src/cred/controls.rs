@@ -2731,6 +2731,9 @@ struct OpenFileMenu {
     // total expanded tree items
     total_items: usize,
 
+    last_loaded_dir: Option<PathBuf>,
+    pattern: String,
+
     // window fields
     title: String,
     size: Size,
@@ -2763,6 +2766,12 @@ impl OpenFileMenu {
         let mut children: Vec<FileItem> = Vec::new();
         for entry in fs::read_dir(dir.as_path())? {
             let dir = entry?;
+            if self.pattern != ""
+                && !dir.path().is_dir() 
+                && !String::from(dir.path().to_path_buf().to_str().unwrap_or("")).contains(&self.pattern) {
+                continue;
+            }
+
             children.push(FileItem {
                 is_dir: dir.path().is_dir(),
                 path: dir.path().to_path_buf(),
@@ -2855,6 +2864,8 @@ impl OpenFileMenu {
 
                         let loaded_items =
                             self.load_directory(item.path.clone()).unwrap_or_default();
+                        self.last_loaded_dir = Some(item.path.clone());
+
                         let index = self.selected_index + 1;
                         for (subindex, subitem) in loaded_items.iter().enumerate() {
                             items_copy.insert(index + subindex, subitem.clone())
@@ -3031,6 +3042,7 @@ impl Render for OpenFileMenu {
         let mut selected_item = self.selected_index;
         while items_to_render.len() < max_displayed && count < self.items.len() {
             let item = &self.items[count];
+
             min_components = cmp::min(min_components, item.path.components().count());
             if count == self.selected_index {
                 selected_item = count - self.view_start;
@@ -3044,6 +3056,7 @@ impl Render for OpenFileMenu {
             self.get_origin().column + buffer.editor_top_left.column,
         );
 
+        let mode = self.mode;
         for (item_index, item) in items_to_render.iter().enumerate() {
             let padding_top_left = [1, 1];
             let row_spacing = 0;
@@ -3054,18 +3067,18 @@ impl Render for OpenFileMenu {
 
             let comp_prefix = item.path.components().count() - min_components;
             let mut dir_prefix = String::from("");
-            if self.mode == OpenMenuMode::File {
+            if mode == OpenMenuMode::File {
                 for _ in 0..comp_prefix {
                     dir_prefix += "  ";
                 }
             }
 
-            let prefix = if item.is_dir && self.mode == OpenMenuMode::File {
+            let prefix = if item.is_dir && mode == OpenMenuMode::File {
                 "/"
             } else {
                 ""
             };
-            let path_name = if self.mode == OpenMenuMode::File {
+            let path_name = if mode == OpenMenuMode::File {
                 item.path
                     .as_path()
                     .file_name()
@@ -3101,7 +3114,17 @@ impl Window for OpenFileMenu {
 }
 
 impl HandleSearchEvent for OpenFileMenu {
-    fn handle_search_event(&mut self, search_event: SearchEvent, window_buffer: Buffer) -> Event {
+    fn handle_search_event(&mut self, search_event: SearchEvent, _window_buffer: Buffer) -> Event {
+        self.pattern = search_event.pattern;
+        if let Some(last_loaded) = self.last_loaded_dir.clone() {
+            let loaded_dir = self.load_directory(last_loaded);
+            if let Ok(dir) = loaded_dir {
+                self.selected_index = 0;
+                self.items = dir;
+            } else {
+                log::warn!("Failed reloading dir: {:?}", self.last_loaded_dir);
+            }
+        }
         Event::new()
     }
 }
@@ -3645,6 +3668,8 @@ impl Editor {
             total_items: 0,
             title: String::from("Open Buffer"),
             size: self.window_buffer.size,
+            last_loaded_dir: None,
+            pattern: "".to_string(),
         };
 
         let mut file_buffers: Vec<FileBuffer> = Vec::new();
@@ -3684,9 +3709,12 @@ impl Editor {
             total_items: 0,
             title: String::from("Open File"),
             size: self.window_buffer.size,
+            last_loaded_dir: None,
+            pattern: "".to_string(),
         };
 
         let current_path = env::current_dir()?;
+        open_file_menu.last_loaded_dir = Some(current_path.clone());
         for item in open_file_menu.load_directory(current_path).iter() {
             open_file_menu.items = item.clone();
         }
