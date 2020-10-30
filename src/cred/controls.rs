@@ -2863,9 +2863,6 @@ impl OpenFileMenu {
                                 )
                                 .starts_with(&item_path)
                         });
-                        for x in &items_copy[..] {
-                            log::info!("{:?} {:?}", item.path.as_path(), x.path.as_path().parent());
-                        }
                     }
                     items_copy[self.selected_index] = replacement_item;
                     self.items.truncate(0);
