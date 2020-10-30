@@ -3100,6 +3100,12 @@ impl Window for OpenFileMenu {
     }
 }
 
+impl HandleSearchEvent for OpenFileMenu {
+    fn handle_search_event(&mut self, search_event: SearchEvent, window_buffer: Buffer) -> Event {
+        Event::new()
+    }
+}
+
 /**
  * Top-level editor state
  */
@@ -3921,17 +3927,18 @@ impl Editor {
         }
 
         if event.search_event.is_some() {
-            match self
-                .file_buffer_controls
-                .get_mut(&self.active_file_buffer.unwrap())
-            {
-                Some(file_buffer) => {
+            if self.controls.len() > 2 
+                && self.controls[self.controls.len()-2].control_type == ControlType::OpenFileMenu {
+                let open_file_control = self.controls[self.controls.len()-2];
+                self.open_file_controls.get_mut(&open_file_control.uuid)
+                    .unwrap()
+                    .handle_search_event(event.search_event.unwrap(), self.window_buffer);
+            } else if let Some(file_buffer) = self
+                    .file_buffer_controls
+                    .get_mut(&self.active_file_buffer.unwrap()) {
+                    // render first one, TODO: handle multiple buffers
                     file_buffer
                         .handle_search_event(event.search_event.unwrap(), self.window_buffer);
-                }
-                None => {
-                    log::warn!("Searched in empty buffer?");
-                }
             }
         }
 
