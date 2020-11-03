@@ -1970,12 +1970,21 @@ impl HandleKey for SearchOverlay {
             }
             Key::Enter => {
                 self.pattern_read_only = true;
+
+                // if this overlay behaves as a filter just close overlay after filtering
+                let window_event = if self.filter_mode {
+                    Some(WindowEvent::close(ControlType::SearchOverlay, None))
+                } else {
+                    None
+                };
+
                 // TODO: take selection and paste to clipboard
                 return Event {
                     search_event: Some(SearchEvent {
                         direction: SearchDirection::Forward,
                         pattern: self.pattern.clone(),
                     }),
+                    window_event: window_event,
                     ..Event::new()
                 };
             }
@@ -2794,17 +2803,27 @@ impl OpenFileMenu {
                 continue;
             }
 
-            children.push(FileItem {
-                is_dir: pathbuf.is_dir(),
-                path: pathbuf.clone(),
-                expanded: depth < 1,
-                visible: depth <= 1,
-                ..FileItem::new_file()
-            });
+            if self.pattern != ""
+                && pathbuf.is_dir() {
+
+            } else {
+                let visible = if self.pattern != "" {
+                    true
+                } else {
+                    depth <= 1
+                };
+                children.push(FileItem {
+                    is_dir: pathbuf.is_dir(),
+                    path: pathbuf.clone(),
+                    expanded: depth < 1,
+                    visible: visible,
+                    ..FileItem::new_file()
+                });
+            }
 
             if depth < LOAD_DIRECTORY_DEPTH && pathbuf.is_dir() {
                 let mut entry_index = 0;
-                for entry in fs::read_dir(pathbuf.as_path())?{
+                for entry in fs::read_dir(pathbuf.as_path())? {
                     match entry {
                         Ok(dir) => {
                             dirs_to_process.insert(entry_index, (depth + 1, dir.path().to_path_buf()) );
@@ -2844,6 +2863,13 @@ impl OpenFileMenu {
                 && !String::from(original_item.path.to_str().unwrap_or("")).contains(&self.pattern) {
                 continue;
             }
+            log::info!("Original: {:?}", original_item);
+
+            if self.pattern != ""
+                && original_item.is_dir {
+                continue;
+            }
+
             self.items.push(original_item.clone());
         }
     }
@@ -3020,7 +3046,7 @@ impl HandleKey for OpenFileMenu {
                 self.move_up(window_buffer);
             }
             Key::PageUp => {
-                for i in 0..self.height(&window_buffer) {
+                for _ in 0..self.height(&window_buffer) {
                     self.move_up(window_buffer);
                 }
                 return keep_open;
@@ -3029,7 +3055,7 @@ impl HandleKey for OpenFileMenu {
                 self.move_down(window_buffer);
             }
             Key::PageDown => {
-                for i in 0..self.height(&window_buffer) {
+                for _ in 0..self.height(&window_buffer) {
                     self.move_down(window_buffer);
                 }
                 return keep_open;
@@ -3042,7 +3068,6 @@ impl HandleKey for OpenFileMenu {
             }
             Key::Enter | Key::Char(SPACE) => match self.mode {
                 OpenMenuMode::File => {
-                    log::info!("Select item");
                     let selected_path = self.select_item();
                     let some_path_selected = selected_path != None;
                     let open_file_event = if some_path_selected {
@@ -3144,7 +3169,7 @@ impl Render for OpenFileMenu {
             self.get_origin().column + buffer.editor_top_left.column,
         );
 
-        let mode = self.mode;
+        let mode = if self.pattern != "" { OpenMenuMode::Buffer } else { self.mode };
         for (item_index, item) in items_to_render.iter().enumerate() {
             let padding_top_left = [1, 1];
             let row_spacing = 0;
@@ -4231,7 +4256,13 @@ impl HandleWindowEvent for Editor {
                 self.open_select_overlay();
             }
             ControlType::SearchOverlay => {
-                self.open_search_overlay(false);
+                let filter_mode = if self.is_displayed_on_top(ControlType::OpenFileMenu) {
+                    true
+                } else {
+                    false
+                };
+
+                self.open_search_overlay(filter_mode);
             }
         }
         Event::new()
