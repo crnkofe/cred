@@ -66,6 +66,9 @@ const SPACE: char = ' ';
 const NEWLINE: char = '\n';
 const TAB: char = '\t';
 
+// depth to which dirs are loaded
+const LOAD_DIRECTORY_DEPTH: usize = 5;
+
 const OPEN_FILE_PRIORITY: usize = 600;
 const MENU_PRIORITY: usize = 500;
 const VISIBLE_FILE_BUFFER_PRIORITY: usize = 200;
@@ -2761,25 +2764,61 @@ fn compare_items(item1: &FileItem, item2: &FileItem) -> Ordering {
 
 impl OpenFileMenu {
     /**
-     * Load first level directory under given path and insert it using at as reference
+     * Load first N-levels directory and files under given path
      */
-    fn load_directory(&self, dir: PathBuf) -> std::io::Result<Vec<FileItem>> {
+    fn load_directory(&self, dir: PathBuf, levels: usize) -> std::io::Result<Vec<FileItem>> {
         let mut children: Vec<FileItem> = Vec::new();
+
+        let mut dirs_to_process: Vec< (usize, PathBuf)> = Vec::new();
+
         for entry in fs::read_dir(dir.as_path())? {
-            let dir = entry?;
+            match entry {
+                Ok(dir) => {
+                    dirs_to_process.push( (0, dir.path().to_path_buf()) );
+                }
+                Err(e) => {
+                    log::warn!("Failed readir dir: {:?} reason: {:?}", dir, e);
+                }
+            }
+        }
+
+        while !dirs_to_process.is_empty() {
+            let (depth, pathbuf) = dirs_to_process.remove(0);
+            if depth >= levels {
+                continue;
+            }
+
             if self.pattern != ""
-                && !dir.path().is_dir() 
-                && !String::from(dir.path().to_path_buf().to_str().unwrap_or("")).contains(&self.pattern) {
+                && !pathbuf.is_dir() 
+                && !String::from(pathbuf.to_str().unwrap_or("")).contains(&self.pattern) {
                 continue;
             }
 
             children.push(FileItem {
-                is_dir: dir.path().is_dir(),
-                path: dir.path().to_path_buf(),
+                is_dir: pathbuf.is_dir(),
+                path: pathbuf.clone(),
+                expanded: depth < 1,
+                visible: depth <= 1,
                 ..FileItem::new_file()
             });
+
+            if depth < LOAD_DIRECTORY_DEPTH && pathbuf.is_dir() {
+                let mut entry_index = 0;
+                for entry in fs::read_dir(pathbuf.as_path())?{
+                    match entry {
+                        Ok(dir) => {
+                            dirs_to_process.insert(entry_index, (depth + 1, dir.path().to_path_buf()) );
+                            entry_index += 1;
+                        }
+                        Err(e) => {
+                            log::warn!("Failed readir dir: {:?} reason: {:?}", dir, e);
+                        }
+                    }
+                }
+            }
         }
-        children.sort_unstable_by(compare_items);
+
+        // children.sort_unstable_by(compare_items);
         Ok(children)
     }
 
@@ -2816,7 +2855,16 @@ impl OpenFileMenu {
     /**
      * Given a new position calculate start position to display menu from
      */
-    fn align_vertical(&mut self, new_position: usize, window_buffer: &Buffer) {
+    fn align_vertical(&mut self, updated_position: usize, window_buffer: &Buffer) {
+        let mut count_invisible = 0;
+        for item in &self.items[0..updated_position] {
+            if !item.visible {
+                count_invisible += 1;
+            }
+        }
+
+        let new_position = updated_position - count_invisible;
+
         let height = self.height(window_buffer);
         if new_position >= self.view_start && new_position < (self.view_start + height) {
             // all good
@@ -2858,48 +2906,15 @@ impl OpenFileMenu {
         count
     }
 
-    fn select_item(&mut self) -> Option<PathBuf> {
-        let item_option = self.items.get(self.selected_index);
+    fn toggle_item(&mut self) -> Option<PathBuf> {
+        let item_option = self.items.get_mut(self.selected_index);
         let selected_path: Option<PathBuf>;
         match item_option {
-            Some(item) => {
+            Some(mut item) => {
                 if !item.is_dir {
                     selected_path = Some(item.path.clone());
                 } else {
-                    // TODO: when not expanded mark all children as not expanded and
-                    // viceversa
-                    let replacement_item = FileItem {
-                        expanded: !item.expanded,
-                        ..item.clone()
-                    };
-
-                    let mut items_copy = self.items.clone();
-                    if replacement_item.expanded {
-                        items_copy
-                            .retain(|x| x.path.as_path().parent().unwrap() != item.path.as_path());
-
-                        let loaded_items =
-                            self.load_directory(item.path.clone()).unwrap_or_default();
-                        self.last_loaded_dir = Some(item.path.clone());
-
-                        let index = self.selected_index + 1;
-                        for (subindex, subitem) in loaded_items.iter().enumerate() {
-                            items_copy.insert(index + subindex, subitem.clone())
-                        }
-                    } else {
-                        let item_path = String::from(item.path.as_path().to_str().unwrap_or(""));
-                        items_copy.retain(|x| {
-                            item_path == x.path.to_str().unwrap_or("")
-                                || !String::from(
-                                    x.path.as_path().to_str().unwrap_or(&String::from("")),
-                                )
-                                .starts_with(&item_path)
-                        });
-                    }
-                    items_copy[self.selected_index] = replacement_item;
-                    self.items.truncate(0);
-                    self.items.extend_from_slice(&items_copy);
-
+                    item.expanded = !item.expanded;
                     selected_path = None;
                 }
             }
@@ -2911,15 +2926,55 @@ impl OpenFileMenu {
         selected_path
     }
 
-    fn move_down(&mut self, window_buffer: Buffer) -> Event {
-        let new_selected_index =
-            if self.items.len() > 1 && self.selected_index < self.items.len() - 1 {
-                cmp::min(self.items.len() - 1, self.selected_index + 1)
-            } else {
-                self.selected_index
-            };
+    fn select_item(&mut self) -> Option<PathBuf> {
+        let selected_path = self.toggle_item();
+
+        if selected_path.is_none() {
+            let item = self.items[self.selected_index].clone();
+
+            let item_path = String::from(item.path.as_path().to_str().unwrap_or(""));
+            for current_item in self.items.iter_mut() {
+                if current_item.path == item.path {
+                    continue;
+                }
+                if String::from(current_item.path.as_path().to_str().unwrap_or(&String::from("")))
+                    .starts_with(&item_path) {
+                    current_item.visible = item.expanded;
+                }
+            }
+        }
+
+        selected_path
+    }
+
+    fn move_up(&mut self, window_buffer: Buffer) -> Event {
+        let mut new_selected_index = if self.selected_index > 0 {
+            self.selected_index - 1
+        } else {
+            self.selected_index
+        };
+
+        while new_selected_index > 0
+            && !self.items[new_selected_index].visible {
+            new_selected_index -= 1;
+        }
+
         self.align_vertical(new_selected_index, &window_buffer);
         self.selected_index = new_selected_index;
+        return Event::new();
+    }
+
+    fn move_down(&mut self, window_buffer: Buffer) -> Event {
+        let mut current_index = self.selected_index + 1;
+        while current_index < (self.items.len() - 1)
+            && !self.items[current_index].visible {
+            current_index += 1;
+        }
+
+        current_index = cmp::min(self.items.len() - 1, current_index);
+
+        self.align_vertical(current_index, &window_buffer);
+        self.selected_index = current_index;
         return Event::new();
     }
 }
@@ -2927,6 +2982,7 @@ impl OpenFileMenu {
 #[derive(Clone, Debug)]
 struct FileItem {
     expanded: bool,
+    visible: bool,
     is_dir: bool,
     // from path it should be easy to decypher parent path
     path: PathBuf,
@@ -2938,6 +2994,7 @@ impl FileItem {
     fn new_file() -> Self {
         Self {
             expanded: false,
+            visible: true,
             is_dir: false,
             path: PathBuf::new(),
             buffer_id: None,
@@ -2946,6 +3003,7 @@ impl FileItem {
 
     fn new_buffer(uuid: Uuid) -> Self {
         Self {
+            visible: true,
             expanded: false,
             is_dir: false,
             path: PathBuf::new(),
@@ -2959,35 +3017,21 @@ impl HandleKey for OpenFileMenu {
         let keep_open = Event::new();
         match ekey.key {
             Key::Up | Key::Char(GAME_UP_SHORTCUT) => {
-                let new_selected_index = if self.selected_index > 0 {
-                    self.selected_index - 1
-                } else {
-                    self.selected_index
-                };
-                self.align_vertical(new_selected_index, &window_buffer);
-                self.selected_index = new_selected_index;
-                return keep_open;
+                self.move_up(window_buffer);
             }
             Key::PageUp => {
-                let new_selected_index = if self.selected_index >= self.height(&window_buffer) {
-                    self.selected_index - self.height(&window_buffer)
-                } else {
-                    0
-                };
-                self.align_vertical(new_selected_index, &window_buffer);
-                self.selected_index = new_selected_index;
+                for i in 0..self.height(&window_buffer) {
+                    self.move_up(window_buffer);
+                }
                 return keep_open;
             }
             Key::Down => {
                 self.move_down(window_buffer);
             }
             Key::PageDown => {
-                let new_selected_index = cmp::min(
-                    self.items.len() - 1,
-                    self.selected_index + self.height(&window_buffer),
-                );
-                self.align_vertical(new_selected_index, &window_buffer);
-                self.selected_index = new_selected_index;
+                for i in 0..self.height(&window_buffer) {
+                    self.move_down(window_buffer);
+                }
                 return keep_open;
             }
             Key::Left => {
@@ -2998,6 +3042,7 @@ impl HandleKey for OpenFileMenu {
             }
             Key::Enter | Key::Char(SPACE) => match self.mode {
                 OpenMenuMode::File => {
+                    log::info!("Select item");
                     let selected_path = self.select_item();
                     let some_path_selected = selected_path != None;
                     let open_file_event = if some_path_selected {
@@ -3077,12 +3122,18 @@ impl Render for OpenFileMenu {
 
         let mut count = self.view_start;
         let mut selected_item = self.selected_index;
+        let mut count_invisible = 0;
         while items_to_render.len() < max_displayed && count < self.items.len() {
             let item = &self.items[count];
+            if !item.visible {
+                count += 1;
+                count_invisible += 1;
+                continue;
+            }
 
             min_components = cmp::min(min_components, item.path.components().count());
             if count == self.selected_index {
-                selected_item = count - self.view_start;
+                selected_item = count - count_invisible - self.view_start;
             }
             items_to_render.push(item.clone());
             count += 1;
@@ -3157,7 +3208,7 @@ impl HandleSearchEvent for OpenFileMenu {
         match self.mode {
             OpenMenuMode::File => {
                 if let Some(last_loaded) = self.last_loaded_dir.clone() {
-                    let loaded_dir = self.load_directory(last_loaded);
+                    let loaded_dir = self.load_directory(last_loaded, LOAD_DIRECTORY_DEPTH);
                     if let Ok(dir) = loaded_dir {
                         self.selected_index = 0;
                         self.items = dir;
@@ -3765,7 +3816,7 @@ impl Editor {
 
         let current_path = env::current_dir()?;
         open_file_menu.last_loaded_dir = Some(current_path.clone());
-        for item in open_file_menu.load_directory(current_path).iter() {
+        for item in open_file_menu.load_directory(current_path, LOAD_DIRECTORY_DEPTH).iter() {
             open_file_menu.items = item.clone();
         }
         open_file_menu.total_items = open_file_menu.count_elements();
