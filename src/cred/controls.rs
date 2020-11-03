@@ -2895,6 +2895,17 @@ impl OpenFileMenu {
         selected_path
     }
 
+    fn move_down(&mut self, window_buffer: Buffer) -> Event {
+        let new_selected_index =
+            if self.items.len() > 1 && self.selected_index < self.items.len() - 1 {
+                cmp::min(self.items.len() - 1, self.selected_index + 1)
+            } else {
+                self.selected_index
+            };
+        self.align_vertical(new_selected_index, &window_buffer);
+        self.selected_index = new_selected_index;
+        return Event::new();
+    }
 }
 
 #[derive(Clone, Debug)]
@@ -2951,16 +2962,8 @@ impl HandleKey for OpenFileMenu {
                 self.selected_index = new_selected_index;
                 return keep_open;
             }
-            Key::Down | Key::Char(GAME_DOWN_SHORTCUT) => {
-                let new_selected_index =
-                    if self.items.len() > 1 && self.selected_index < self.items.len() - 1 {
-                        cmp::min(self.items.len() - 1, self.selected_index + 1)
-                    } else {
-                        self.selected_index
-                    };
-                self.align_vertical(new_selected_index, &window_buffer);
-                self.selected_index = new_selected_index;
-                return keep_open;
+            Key::Down => {
+                self.move_down(window_buffer);
             }
             Key::PageDown => {
                 let new_selected_index = cmp::min(
@@ -2971,10 +2974,10 @@ impl HandleKey for OpenFileMenu {
                 self.selected_index = new_selected_index;
                 return keep_open;
             }
-            Key::Left | Key::Char(GAME_LEFT_SHORTCUT) => {
+            Key::Left => {
                 // TODO:
             }
-            Key::Right | Key::Char(GAME_RIGHT_SHORTCUT) => {
+            Key::Right => {
                 // TODO:
             }
             Key::Enter | Key::Char(SPACE) => match self.mode {
@@ -3009,11 +3012,29 @@ impl HandleKey for OpenFileMenu {
                     };
                 }
             },
-            Key::Char(CTRL_SEARCH_SHORTCUT) => {
+            Key::Char(c) => {
                 if ekey.modifiers.ctrl {
-                    return Event {
-                        window_event: Some(WindowEvent::open(ControlType::SearchOverlay)),
-                        ..Event::key(ekey)
+                    match c {
+                        CTRL_SEARCH_SHORTCUT => {
+                            return Event {
+                                window_event: Some(WindowEvent::open(ControlType::SearchOverlay)),
+                                ..Event::key(ekey)
+                            }
+                        },
+                        CTRL_MENU_SHORTCUT => {
+                            return Event {
+                                window_event: Some(WindowEvent::close(ControlType::OpenFileMenu, None)),
+                                ..Event::key(ekey)
+                            }
+                        }
+                        _ => {}
+                    }
+                } else {
+                    match c {
+                        GAME_DOWN_SHORTCUT => {
+                            self.move_down(window_buffer);
+                        }
+                        _ => {}
                     }
                 }
             },
