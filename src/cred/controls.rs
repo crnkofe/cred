@@ -241,8 +241,7 @@ trait Window {
                         }
                     }
                     buffer.write_direct(&char_string, location, NORMAL_STYLE);
-                } else if row == top_left.row
-                    || row == top_left.row + size.rows - 1 {
+                } else if row == top_left.row || row == top_left.row + size.rows - 1 {
                     buffer.write_direct(&String::from(dash), location, NORMAL_STYLE);
                 } else if column == top_left.column || column == top_left.column + size.columns - 1
                 {
@@ -1984,7 +1983,7 @@ impl HandleKey for SearchOverlay {
                         direction: SearchDirection::Forward,
                         pattern: self.pattern.clone(),
                     }),
-                    window_event: window_event,
+                    window_event,
                     ..Event::new()
                 };
             }
@@ -2752,25 +2751,6 @@ struct OpenFileMenu {
     size: Size,
 }
 
-fn compare_items(item1: &FileItem, item2: &FileItem) -> Ordering {
-    if item1.is_dir && !item2.is_dir {
-        return Ordering::Less;
-    } else if item2.is_dir && !item1.is_dir {
-        return Ordering::Greater;
-    }
-    let path1_name = item1
-        .path
-        .as_path()
-        .file_name()
-        .unwrap_or_else(|| std::ffi::OsStr::new(""));
-    let path2_name = item2
-        .path
-        .as_path()
-        .file_name()
-        .unwrap_or_else(|| std::ffi::OsStr::new(""));
-    path1_name.partial_cmp(path2_name).unwrap()
-}
-
 impl OpenFileMenu {
     /**
      * Load first N-levels directory and files under given path
@@ -2778,12 +2758,12 @@ impl OpenFileMenu {
     fn load_directory(&self, dir: PathBuf, levels: usize) -> std::io::Result<Vec<FileItem>> {
         let mut children: Vec<FileItem> = Vec::new();
 
-        let mut dirs_to_process: Vec< (usize, PathBuf)> = Vec::new();
+        let mut dirs_to_process: Vec<(usize, PathBuf)> = Vec::new();
 
         for entry in fs::read_dir(dir.as_path())? {
             match entry {
                 Ok(dir) => {
-                    dirs_to_process.push( (0, dir.path().to_path_buf()) );
+                    dirs_to_process.push((0, dir.path().to_path_buf()));
                 }
                 Err(e) => {
                     log::warn!("Failed readir dir: {:?} reason: {:?}", dir, e);
@@ -2798,25 +2778,20 @@ impl OpenFileMenu {
             }
 
             if self.pattern != ""
-                && !pathbuf.is_dir() 
-                && !String::from(pathbuf.to_str().unwrap_or("")).contains(&self.pattern) {
+                && !pathbuf.is_dir()
+                && !String::from(pathbuf.to_str().unwrap_or("")).contains(&self.pattern)
+            {
                 continue;
             }
 
-            if self.pattern != ""
-                && pathbuf.is_dir() {
-
+            if self.pattern != "" && pathbuf.is_dir() {
             } else {
-                let visible = if self.pattern != "" {
-                    true
-                } else {
-                    depth <= 1
-                };
+                let visible = if self.pattern != "" { true } else { depth <= 1 };
                 children.push(FileItem {
                     is_dir: pathbuf.is_dir(),
                     path: pathbuf.clone(),
                     expanded: depth < 1,
-                    visible: visible,
+                    visible,
                     ..FileItem::new_file()
                 });
             }
@@ -2826,7 +2801,8 @@ impl OpenFileMenu {
                 for entry in fs::read_dir(pathbuf.as_path())? {
                     match entry {
                         Ok(dir) => {
-                            dirs_to_process.insert(entry_index, (depth + 1, dir.path().to_path_buf()) );
+                            dirs_to_process
+                                .insert(entry_index, (depth + 1, dir.path().to_path_buf()));
                             entry_index += 1;
                         }
                         Err(e) => {
@@ -2845,7 +2821,8 @@ impl OpenFileMenu {
         let mut loaded_buffers: Vec<FileItem> = Vec::new();
         for buffer in buffers {
             if self.pattern != ""
-                && !String::from(buffer.file_path.as_str()).contains(&self.pattern) {
+                && !String::from(buffer.file_path.as_str()).contains(&self.pattern)
+            {
                 continue;
             }
             loaded_buffers.push(FileItem {
@@ -2860,13 +2837,13 @@ impl OpenFileMenu {
         self.items = Vec::new();
         for original_item in &self.original_items[..] {
             if self.pattern != ""
-                && !String::from(original_item.path.to_str().unwrap_or("")).contains(&self.pattern) {
+                && !String::from(original_item.path.to_str().unwrap_or("")).contains(&self.pattern)
+            {
                 continue;
             }
             log::info!("Original: {:?}", original_item);
 
-            if self.pattern != ""
-                && original_item.is_dir {
+            if self.pattern != "" && original_item.is_dir {
                 continue;
             }
 
@@ -2963,8 +2940,15 @@ impl OpenFileMenu {
                 if current_item.path == item.path {
                     continue;
                 }
-                if String::from(current_item.path.as_path().to_str().unwrap_or(&String::from("")))
-                    .starts_with(&item_path) {
+                if String::from(
+                    current_item
+                        .path
+                        .as_path()
+                        .to_str()
+                        .unwrap_or(&String::from("")),
+                )
+                .starts_with(&item_path)
+                {
                     current_item.visible = item.expanded;
                 }
             }
@@ -2980,20 +2964,18 @@ impl OpenFileMenu {
             self.selected_index
         };
 
-        while new_selected_index > 0
-            && !self.items[new_selected_index].visible {
+        while new_selected_index > 0 && !self.items[new_selected_index].visible {
             new_selected_index -= 1;
         }
 
         self.align_vertical(new_selected_index, &window_buffer);
         self.selected_index = new_selected_index;
-        return Event::new();
+        Event::new()
     }
 
     fn move_down(&mut self, window_buffer: Buffer) -> Event {
         let mut current_index = self.selected_index + 1;
-        while current_index < (self.items.len() - 1)
-            && !self.items[current_index].visible {
+        while current_index < (self.items.len() - 1) && !self.items[current_index].visible {
             current_index += 1;
         }
 
@@ -3001,7 +2983,7 @@ impl OpenFileMenu {
 
         self.align_vertical(current_index, &window_buffer);
         self.selected_index = current_index;
-        return Event::new();
+        Event::new()
     }
 }
 
@@ -3106,24 +3088,22 @@ impl HandleKey for OpenFileMenu {
                                 window_event: Some(WindowEvent::open(ControlType::SearchOverlay)),
                                 ..Event::key(ekey)
                             }
-                        },
+                        }
                         CTRL_MENU_SHORTCUT => {
                             return Event {
-                                window_event: Some(WindowEvent::close(ControlType::OpenFileMenu, None)),
+                                window_event: Some(WindowEvent::close(
+                                    ControlType::OpenFileMenu,
+                                    None,
+                                )),
                                 ..Event::key(ekey)
                             }
                         }
                         _ => {}
                     }
-                } else {
-                    match c {
-                        GAME_DOWN_SHORTCUT => {
-                            self.move_down(window_buffer);
-                        }
-                        _ => {}
-                    }
+                } else if let GAME_DOWN_SHORTCUT = c {
+                    self.move_down(window_buffer);
                 }
-            },
+            }
             Key::Esc => {
                 return Event {
                     window_event: Some(WindowEvent::close(ControlType::OpenFileMenu, None)),
@@ -3169,7 +3149,11 @@ impl Render for OpenFileMenu {
             self.get_origin().column + buffer.editor_top_left.column,
         );
 
-        let mode = if self.pattern != "" { OpenMenuMode::Buffer } else { self.mode };
+        let mode = if self.pattern != "" {
+            OpenMenuMode::Buffer
+        } else {
+            self.mode
+        };
         for (item_index, item) in items_to_render.iter().enumerate() {
             let padding_top_left = [1, 1];
             let row_spacing = 0;
@@ -3653,7 +3637,11 @@ impl Editor {
 
         // TODO: set selection state on filebuffer
         let overlay = SearchOverlay {
-            title: if filter_mode { String::from("Filter") } else { String::from("Search") },
+            title: if filter_mode {
+                String::from("Filter")
+            } else {
+                String::from("Search")
+            },
             size: Size::new(3, self.window_buffer.size.columns),
             pattern_read_only: false,
             pattern_location: 0,
@@ -3841,7 +3829,10 @@ impl Editor {
 
         let current_path = env::current_dir()?;
         open_file_menu.last_loaded_dir = Some(current_path.clone());
-        for item in open_file_menu.load_directory(current_path, LOAD_DIRECTORY_DEPTH).iter() {
+        for item in open_file_menu
+            .load_directory(current_path, LOAD_DIRECTORY_DEPTH)
+            .iter()
+        {
             open_file_menu.items = item.clone();
         }
         open_file_menu.total_items = open_file_menu.count_elements();
@@ -4081,18 +4072,20 @@ impl Editor {
         }
 
         if event.search_event.is_some() {
-            if self.controls.len() > 2 
-                && self.controls[self.controls.len()-2].control_type == ControlType::OpenFileMenu {
-                let open_file_control = self.controls[self.controls.len()-2];
-                self.open_file_controls.get_mut(&open_file_control.uuid)
+            if self.controls.len() > 2
+                && self.controls[self.controls.len() - 2].control_type == ControlType::OpenFileMenu
+            {
+                let open_file_control = self.controls[self.controls.len() - 2];
+                self.open_file_controls
+                    .get_mut(&open_file_control.uuid)
                     .unwrap()
                     .handle_search_event(event.search_event.unwrap(), self.window_buffer);
             } else if let Some(file_buffer) = self
-                    .file_buffer_controls
-                    .get_mut(&self.active_file_buffer.unwrap()) {
-                    // render first one, TODO: handle multiple buffers
-                    file_buffer
-                        .handle_search_event(event.search_event.unwrap(), self.window_buffer);
+                .file_buffer_controls
+                .get_mut(&self.active_file_buffer.unwrap())
+            {
+                // render first one, TODO: handle multiple buffers
+                file_buffer.handle_search_event(event.search_event.unwrap(), self.window_buffer);
             }
         }
 
@@ -4184,15 +4177,19 @@ impl Editor {
             Some(control_reference) => {
                 if control_reference.is_overlay() {
                     // check if underlying control is open file and render it instead
-                    if self.controls.len() > 2 
-                        && self.controls[self.controls.len()-2].control_type == ControlType::OpenFileMenu {
-                        let open_file_control = self.controls[self.controls.len()-2];
+                    if self.controls.len() > 2
+                        && self.controls[self.controls.len() - 2].control_type
+                            == ControlType::OpenFileMenu
+                    {
+                        let open_file_control = self.controls[self.controls.len() - 2];
 
-                        self.open_file_controls[&open_file_control.uuid].render(&self.window_buffer);
+                        self.open_file_controls[&open_file_control.uuid]
+                            .render(&self.window_buffer);
                     } else if let Some(file_buffer) = self
-                            .file_buffer_controls
-                            .get_mut(&self.active_file_buffer.unwrap()) {
-                            // render first one, TODO: handle multiple buffers
+                        .file_buffer_controls
+                        .get_mut(&self.active_file_buffer.unwrap())
+                    {
+                        // render first one, TODO: handle multiple buffers
                         file_buffer.render(&self.window_buffer);
                     }
                 }
@@ -4256,12 +4253,7 @@ impl HandleWindowEvent for Editor {
                 self.open_select_overlay();
             }
             ControlType::SearchOverlay => {
-                let filter_mode = if self.is_displayed_on_top(ControlType::OpenFileMenu) {
-                    true
-                } else {
-                    false
-                };
-
+                let filter_mode = self.is_displayed_on_top(ControlType::OpenFileMenu);
                 self.open_search_overlay(filter_mode);
             }
         }
