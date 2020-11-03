@@ -2723,6 +2723,7 @@ struct OpenFileMenu {
     mode: OpenMenuMode,
 
     view_start: usize,
+    original_items: Vec<FileItem>,
     items: Vec<FileItem>,
     // selected index is an offset from start to currently selected item
     // it points to current state of tree - if tree inadvertently changes index might be incorrect
@@ -2785,12 +2786,27 @@ impl OpenFileMenu {
     fn load_buffers(&self, buffers: &[FileBuffer]) -> std::io::Result<Vec<FileItem>> {
         let mut loaded_buffers: Vec<FileItem> = Vec::new();
         for buffer in buffers {
+            if self.pattern != ""
+                && !String::from(buffer.file_path.as_str()).contains(&self.pattern) {
+                continue;
+            }
             loaded_buffers.push(FileItem {
                 path: PathBuf::from(buffer.file_path.clone()),
                 ..FileItem::new_buffer(buffer.buffer_id)
             });
         }
         Ok(loaded_buffers)
+    }
+
+    fn reload_buffers(&mut self) {
+        self.items = Vec::new();
+        for original_item in &self.original_items[..] {
+            if self.pattern != ""
+                && !String::from(original_item.path.to_str().unwrap_or("")).contains(&self.pattern) {
+                continue;
+            }
+            self.items.push(original_item.clone());
+        }
     }
 
     fn height(&self, window_buffer: &Buffer) -> usize {
@@ -3137,13 +3153,21 @@ impl Window for OpenFileMenu {
 impl HandleSearchEvent for OpenFileMenu {
     fn handle_search_event(&mut self, search_event: SearchEvent, _window_buffer: Buffer) -> Event {
         self.pattern = search_event.pattern;
-        if let Some(last_loaded) = self.last_loaded_dir.clone() {
-            let loaded_dir = self.load_directory(last_loaded);
-            if let Ok(dir) = loaded_dir {
-                self.selected_index = 0;
-                self.items = dir;
-            } else {
-                log::warn!("Failed reloading dir: {:?}", self.last_loaded_dir);
+
+        match self.mode {
+            OpenMenuMode::File => {
+                if let Some(last_loaded) = self.last_loaded_dir.clone() {
+                    let loaded_dir = self.load_directory(last_loaded);
+                    if let Ok(dir) = loaded_dir {
+                        self.selected_index = 0;
+                        self.items = dir;
+                    } else {
+                        log::warn!("Failed reloading dir: {:?}", self.last_loaded_dir);
+                    }
+                }
+            }
+            OpenMenuMode::Buffer => {
+                self.reload_buffers();
             }
         }
         Event::new()
@@ -3684,6 +3708,7 @@ impl Editor {
         let mut open_buffer_menu = OpenFileMenu {
             mode: OpenMenuMode::Buffer,
             view_start: 0,
+            original_items: Vec::new(),
             items: Vec::new(),
             selected_index: 0,
             total_items: 0,
@@ -3697,8 +3722,11 @@ impl Editor {
         for file_buffer in self.file_buffer_controls.values() {
             file_buffers.push((*file_buffer).clone());
         }
-        for item in open_buffer_menu.load_buffers(&file_buffers).iter() {
-            open_buffer_menu.items = item.clone();
+        if let Ok(items) = open_buffer_menu.load_buffers(&file_buffers) {
+            for item in items {
+                open_buffer_menu.items.push(item.clone());
+                open_buffer_menu.original_items.push(item.clone());
+            }
         }
         open_buffer_menu.total_items = open_buffer_menu.count_elements();
 
@@ -3725,6 +3753,7 @@ impl Editor {
         let mut open_file_menu = OpenFileMenu {
             mode: OpenMenuMode::File,
             view_start: 0,
+            original_items: Vec::new(),
             items: Vec::new(),
             selected_index: 0,
             total_items: 0,
