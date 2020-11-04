@@ -168,7 +168,18 @@ impl Syntax {
                         "Some", "None",
                     ],
                 ),
+                RegexGroup::raw(STRING, vec!["[r]?\"(.*?)\""]),
                 RegexGroup::raw(INVERSE_STYLE, vec![r"^\d+$"]),
+            ],
+        }
+    }
+
+    fn toml() -> Self {
+        Self {
+            file_type: String::from("toml"),
+            regex_groups: vec![
+                RegexGroup::raw(COMMENT, vec![r"(\s|\w|^)#.*"]),
+                RegexGroup::raw(STRING, vec!["(\".*?\")"]),
             ],
         }
     }
@@ -180,7 +191,7 @@ pub struct SyntaxHighlight {
 
 impl SyntaxHighlight {
     pub fn new() -> Self {
-        let syntaxes = vec![Syntax::none(), Syntax::rust(), Syntax::python()];
+        let syntaxes = vec![Syntax::none(), Syntax::rust(), Syntax::python(), Syntax::toml()];
 
         let mut syntax_lookup: HashMap<String, Syntax> = HashMap::new();
         for syntax in syntaxes {
