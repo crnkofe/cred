@@ -42,6 +42,7 @@ pub enum ControlType {
     UndoRedoOverlay,
     SelectionOverlay,
     SearchOverlay,
+    HelpOverlay,
 }
 
 #[derive(Clone, Debug)]

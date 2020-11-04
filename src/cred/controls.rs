@@ -79,6 +79,9 @@ const MAX_ACTION_SIZE: usize = 10000;
 // TODO: check for unizero on file load to see if binary file loaded
 // const UNIZERO: char = '\u{0}';
 
+// show help on any window
+const HELP_SHORTCUT: Key = Key::F(1);
+
 // ctrl+x shortcuts
 const CTRL_MENU_SHORTCUT: char = 'd';
 const CTRL_COPY_SHORTCUT: char = 'c';
@@ -1092,6 +1095,12 @@ impl FileBuffer {
                     }
                     self.align_buffer_vertical_down(&window_buffer);
                 }
+                HELP_SHORTCUT => {
+                    return Event {
+                        window_event: Some(WindowEvent::open(ControlType::HelpOverlay)),
+                        ..Event::new()
+                    };
+                }
                 Key::Char(input_char) => {
                     self.action_do(Action::insert(self.text_location, input_char.to_string()));
                 }
@@ -1683,6 +1692,51 @@ impl HandleSelectEvent for FileBuffer {
         Event::new()
     }
 }
+
+
+/**
+ * Show help for underlying window
+ */
+struct HelpOverlay {
+    // overlay title
+    title: String,
+    // overlay size
+    size: Size,
+}
+
+impl HandleKey for HelpOverlay {
+    fn handle_key(&mut self, ekey: ExtendedKey, _window_buffer: Buffer) -> Event {
+        if !ekey.modifiers.ctrl {
+            Event {
+                window_event: Some(WindowEvent::close(ControlType::HelpOverlay, None)),
+                ..Event::new()
+            }
+        } else {
+            Event::new()
+        }
+    }
+}
+
+impl Render for HelpOverlay {
+    fn render(&self, buffer: &Buffer) {
+        self.render_window(buffer);
+    }
+}
+
+impl Window for HelpOverlay {
+    fn get_origin(&self) -> Location {
+        Location::new(0, 0)
+    }
+
+    fn get_size(&self) -> Size {
+        self.size
+    }
+
+    fn get_title(&self) -> String {
+        self.title.clone()
+    }
+}
+
 
 /**
  * Undo/Redo overlay allows undoing/redoing of recent actions
@@ -3248,6 +3302,7 @@ pub struct Editor {
     undo_redo_overlays: HashMap<Uuid, UndoRedoOverlay>,
     selection_overlay_buffers: HashMap<Uuid, SelectionOverlay>,
     search_overlays: HashMap<Uuid, SearchOverlay>,
+    help_overlays: HashMap<Uuid, HelpOverlay>,
 
     // currently displayed file buffer
     active_file_buffer: Option<Uuid>,
@@ -3270,6 +3325,7 @@ impl Editor {
             undo_redo_overlays: HashMap::new(),
             selection_overlay_buffers: HashMap::new(),
             search_overlays: HashMap::new(),
+            help_overlays: HashMap::new(),
             active_file_buffer: None,
             controls: Vec::new(),
             syntax_highlight: SyntaxHighlight::new(),
@@ -3348,6 +3404,7 @@ impl Editor {
             ControlType::SelectionOverlay => get_renderable(&self.selection_overlay_buffers, uuid),
             ControlType::SearchOverlay => get_renderable(&self.search_overlays, uuid),
             ControlType::OpenFileMenu => get_renderable(&self.open_file_controls, uuid),
+            ControlType::HelpOverlay => get_renderable(&self.help_overlays, uuid),
         }
     }
 
@@ -3679,6 +3736,49 @@ impl Editor {
         self.search_overlays.remove(&uuid);
         self.controls
             .retain(|c| c.control_type != ControlType::SearchOverlay);
+    }
+
+    fn open_help_overlay(&mut self) {
+        if self.is_displayed_on_top(ControlType::HelpOverlay) {
+            return;
+        }
+
+        // TODO: set selection state on filebuffer
+        let overlay = HelpOverlay {
+            title: String::from("Help"),
+            size: Size::new(3, self.window_buffer.size.columns),
+        };
+
+        self.window_buffer.editor_top_left = Location::new(overlay.get_size().rows, 0);
+        // resize editor buffer size
+        self.window_buffer.editor_size = Size::new(
+            self.window_buffer.size.rows - overlay.get_size().rows,
+            self.window_buffer.size.columns,
+        );
+
+        let mut priority = 500;
+        if !self.controls.is_empty() {
+            priority = self.controls.last().unwrap().priority + 100;
+        }
+
+        // when user is on editor and presses escape show top level menu
+        let new_control_reference = ControlReference::new(ControlType::HelpOverlay, priority);
+        self.help_overlays
+            .insert(new_control_reference.uuid, overlay);
+        self.controls.push(new_control_reference);
+        self.controls
+            .sort_unstable_by(|c1, c2| c1.priority.partial_cmp(&c2.priority).unwrap());
+    }
+
+    fn close_help_overlay(&mut self, uuid: Uuid) {
+        // resize editor buffer size
+        self.window_buffer.editor_top_left = Location::new(0, 0);
+        self.window_buffer.editor_size = self.window_buffer.size;
+
+        // update editor buffer top left and size
+        self.help_overlays.remove(&uuid);
+        self.controls
+            .retain(|c| c.control_type != ControlType::HelpOverlay);
     }
 
     fn open_main_menu(&mut self) {
@@ -4013,6 +4113,9 @@ impl Editor {
                     ControlType::SearchOverlay => {
                         handle_key(&mut self.search_overlays, uuid, ekey, buffer)
                     }
+                    ControlType::HelpOverlay => {
+                        handle_key(&mut self.help_overlays, uuid, ekey, buffer)
+                    }
                 }
             }
             _ => {
@@ -4252,6 +4355,9 @@ impl HandleWindowEvent for Editor {
             ControlType::SelectionOverlay => {
                 self.open_select_overlay();
             }
+            ControlType::HelpOverlay => {
+                self.open_help_overlay();
+            }
             ControlType::SearchOverlay => {
                 let filter_mode = self.is_displayed_on_top(ControlType::OpenFileMenu);
                 self.open_search_overlay(filter_mode);
@@ -4300,6 +4406,9 @@ impl HandleWindowEvent for Editor {
             }
             ControlType::SearchOverlay => {
                 self.close_search_overlay(control_id);
+            }
+            ControlType::HelpOverlay => {
+                self.close_help_overlay(control_id);
             }
         }
         Event::new()
