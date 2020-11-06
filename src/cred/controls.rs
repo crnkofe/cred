@@ -831,6 +831,16 @@ impl FileBuffer {
             if next_row == 0 {
                 break;
             }
+            
+            if next_row > 0 
+            	&& is_location_in_buffer(
+	        	    text_location,
+	        	    Location::new(next_row-1, self.view_location.column),
+	        	    window_buffer.editor_size) {
+                next_row -= 1;
+                break;
+            }
+            
             if next_row > window_buffer.editor_size.rows {
                 next_row -= window_buffer.editor_size.rows;
             } else {
