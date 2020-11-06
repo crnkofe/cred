@@ -471,6 +471,7 @@ impl ControlReference {
         self.control_type == ControlType::SelectionOverlay
             || self.control_type == ControlType::UndoRedoOverlay
             || self.control_type == ControlType::SearchOverlay
+            || self.control_type == ControlType::HelpOverlay
     }
 }
 
@@ -831,16 +832,18 @@ impl FileBuffer {
             if next_row == 0 {
                 break;
             }
-            
-            if next_row > 0 
-            	&& is_location_in_buffer(
-	        	    text_location,
-	        	    Location::new(next_row-1, self.view_location.column),
-	        	    window_buffer.editor_size) {
+
+            if next_row > 0
+                && is_location_in_buffer(
+                    text_location,
+                    Location::new(next_row - 1, self.view_location.column),
+                    window_buffer.editor_size,
+                )
+            {
                 next_row -= 1;
                 break;
             }
-            
+
             if next_row > window_buffer.editor_size.rows {
                 next_row -= window_buffer.editor_size.rows;
             } else {
@@ -852,25 +855,29 @@ impl FileBuffer {
         self.view_location = Location::new(next_row, self.view_location.column);
     }
 
-    fn align_buffer_vertical_down(&mut self, previous_text_location: usize, window_buffer: &Buffer, allow_minimum: bool) {
+    fn align_buffer_vertical_down(&mut self, window_buffer: &Buffer, allow_minimum: bool) {
         // check if pointer is out of buffer and scroll to find it
         let text_location = self.index_to_location();
         while !is_location_in_buffer(text_location, self.view_location, window_buffer.editor_size) {
             if self.view_location.row + window_buffer.editor_size.rows > self.lines.len() {
                 break;
             }
-             
-            let next_view_location = Location::new(
-	            self.view_location.row + 1,
-	            self.view_location.column,
-            );
-            if allow_minimum && is_location_in_buffer(text_location, next_view_location, window_buffer.editor_size) { 
+
+            let next_view_location =
+                Location::new(self.view_location.row + 1, self.view_location.column);
+            if allow_minimum
+                && is_location_in_buffer(
+                    text_location,
+                    next_view_location,
+                    window_buffer.editor_size,
+                )
+            {
                 self.view_location = next_view_location;
             } else {
-	            self.view_location = Location::new(
-	                self.view_location.row + window_buffer.editor_size.rows,
-	                self.view_location.column,
-	            );
+                self.view_location = Location::new(
+                    self.view_location.row + window_buffer.editor_size.rows,
+                    self.view_location.column,
+                );
             }
         }
     }
@@ -1022,9 +1029,8 @@ impl FileBuffer {
                     self.align_buffer_vertical_up(&window_buffer);
                 }
                 Key::Down => {
-                	let previous_location = self.text_location;
                     self.down();
-                    self.align_buffer_vertical_down(previous_location, &window_buffer, true);
+                    self.align_buffer_vertical_down(&window_buffer, true);
                 }
                 Key::Right => {
                     self.text_location = cmp::min(self.contents.len() - 1, self.text_location + 1);
@@ -1078,11 +1084,10 @@ impl FileBuffer {
                     if self.text_location >= self.contents.len() - 1 {
                         return Event::new();
                     }
-                    let previous_location = self.text_location;
                     for _ in 0..window_buffer.editor_size.rows {
                         self.down();
                     }
-                    self.align_buffer_vertical_down(previous_location, &window_buffer, false);
+                    self.align_buffer_vertical_down(&window_buffer, false);
                 }
                 Key::Esc => {
                     return Event {
@@ -1096,7 +1101,6 @@ impl FileBuffer {
                 Key::Enter => {
                     // smart tab
                     // TODO: respect either tab as tab characters or tab as spaces
-                    let previous_location = self.text_location;
                     let mut whitespace_count = 0;
                     let mut start = if self.text_location > 0 {
                         self.text_location - 1
@@ -1119,7 +1123,7 @@ impl FileBuffer {
                     for _ in 0..whitespace_count {
                         self.action_do(Action::insert(self.text_location, SPACE.to_string()));
                     }
-                    self.align_buffer_vertical_down(previous_location, &window_buffer, false);
+                    self.align_buffer_vertical_down(&window_buffer, false);
                 }
                 HELP_SHORTCUT => {
                     return Event {
@@ -1243,9 +1247,8 @@ impl FileBuffer {
                 self.align_buffer_vertical_up(&window_buffer);
             }
             Key::Down | Key::Char(GAME_DOWN_SHORTCUT) => {
-            	let previous_location = self.text_location;
                 self.down();
-                self.align_buffer_vertical_down(previous_location, &window_buffer, true);
+                self.align_buffer_vertical_down(&window_buffer, true);
             }
             Key::Right | Key::Char(GAME_RIGHT_SHORTCUT) => {
                 self.text_location = cmp::min(self.contents.len() - 1, self.text_location + 1);
@@ -1275,14 +1278,13 @@ impl FileBuffer {
                 self.align_buffer_vertical_up(&window_buffer);
             }
             Key::PageDown => {
-            	let previous_location = self.text_location;
                 if self.text_location >= self.contents.len() - 1 {
                     return Event::new();
                 }
                 for _ in 0..window_buffer.editor_size.rows {
                     self.down();
                 }
-                self.align_buffer_vertical_down(previous_location, &window_buffer, false);
+                self.align_buffer_vertical_down(&window_buffer, false);
             }
             Key::Esc => {
                 return Event {
@@ -1483,7 +1485,7 @@ impl FileBuffer {
         self.text_location = location;
         self.current_match = match_index;
         if self.text_location > previous_location {
-            self.align_buffer_vertical_down(previous_location, &window_buffer, false);
+            self.align_buffer_vertical_down(&window_buffer, false);
         } else {
             self.align_buffer_vertical_up(&window_buffer);
         }
@@ -1522,6 +1524,8 @@ impl Render for FileBuffer {
         let highlights = self.syntax.find_groups(
             &(self.get_slice_string(start_of_syntax_highlight, end_of_syntax_highlight)),
         );
+
+        log::info!("asdas {:?}", self.contents);
 
         // TODO: in case of selection mode render selection
         for index in start_of_render..self.contents.len() {
@@ -1721,7 +1725,6 @@ impl HandleSelectEvent for FileBuffer {
     }
 }
 
-
 /**
  * Show help for underlying window
  */
@@ -1730,7 +1733,7 @@ struct HelpOverlay {
     title: String,
     // overlay size
     size: Size,
-    // display help text 
+    // display help text
     file_buffer: FileBuffer,
 }
 
@@ -1750,6 +1753,14 @@ impl HandleKey for HelpOverlay {
 impl Render for HelpOverlay {
     fn render(&self, buffer: &Buffer) {
         self.render_window(buffer);
+
+        let modified_buffer = Buffer {
+            editor_top_left: Location::new(1, 1),
+            editor_size: Size::new(buffer.size.rows-1, buffer.size.columns-1),
+            ..*buffer
+        };
+
+        self.file_buffer.render(&modified_buffer);
     }
 }
 
@@ -1766,7 +1777,6 @@ impl Window for HelpOverlay {
         self.title.clone()
     }
 }
-
 
 /**
  * Undo/Redo overlay allows undoing/redoing of recent actions
@@ -3692,7 +3702,7 @@ impl Editor {
         {
             file_buffer.coverage = Some(Coverage::FromTo);
             file_buffer.align_buffer_vertical_up(&self.window_buffer);
-            file_buffer.align_buffer_vertical_down(0, &self.window_buffer, false);
+            file_buffer.align_buffer_vertical_down(&self.window_buffer, false);
         }
     }
 
@@ -3774,19 +3784,63 @@ impl Editor {
         }
 
         // TODO: set selection state on filebuffer
-        let overlay = HelpOverlay {
+        let mut overlay = HelpOverlay {
             title: String::from("Help"),
-            size: Size::new(self.window_buffer.size.rows, self.window_buffer.size.columns),
+            size: Size::new(
+                self.window_buffer.size.rows,
+                self.window_buffer.size.columns,
+            ),
             file_buffer: FileBuffer::new(
                 Uuid::new_v4(),
                 self.syntax_highlight.find_syntax(PathBuf::new()),
             ),
         };
 
+        if let Some(control_reference) = self.controls.last() {
+            let file_name = match control_reference.control_type {
+                ControlType::FileBuffer => "help/buffer.md",
+                ControlType::Menu => "help/menu.md",
+                ControlType::OpenFileMenu => "help/openfile.md",
+                ControlType::YesNoDialog => "help/dialog.md",
+                ControlType::InputDialog => "help/inputdialog.md",
+                ControlType::UndoRedoOverlay => "help/undoredo.md",
+                ControlType::SelectionOverlay => "help/selection.md",
+                ControlType::SearchOverlay => "help/search.md",
+                _ => "unknown",
+            };
+
+            if let Ok(pwd_path) = env::current_dir() {
+               // let raw_path = String::from(format!("{}{}", pwd_path.to_str().unwrap_or(""), file_name));
+                let file_path = Path::new(&pwd_path).join(file_name);
+                // Open the path in read-only mode, returns `io::Result<File>`
+                let file = match OpenOptions::new().read(true).open(&file_path) {
+                    Err(why) => {
+                        log::info!("Couldn't create file: {:?}", why);
+                        panic!("Couldn't create file: {}", file_path.display());
+                    }
+                    Ok(file) => file,
+                };
+
+                let buf_reader = BufReader::with_capacity(1024 * 10, file);
+
+                for line in buf_reader.lines() {
+                    if let Ok(unwrapped_line) = line {
+                        let mut char_vec: Vec<char> = unwrapped_line.chars().collect();
+                        char_vec.push(NEWLINE);
+                        overlay.file_buffer.lines.push_line(char_vec.len());
+                        log::info!("chars: {:?}", char_vec);
+                        overlay.file_buffer.contents.append(&mut char_vec);
+                    }
+                }
+            } else {
+                log::warn!("Can't determine current path (pwd)");
+            }
+        }
+
         self.window_buffer.editor_top_left = Location::new(overlay.get_size().rows, 0);
         // resize editor buffer size
         self.window_buffer.editor_size = Size::new(
-            self.window_buffer.size.rows - overlay.get_size().rows,
+            self.window_buffer.size.rows,
             self.window_buffer.size.columns,
         );
 

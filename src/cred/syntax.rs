@@ -191,7 +191,12 @@ pub struct SyntaxHighlight {
 
 impl SyntaxHighlight {
     pub fn new() -> Self {
-        let syntaxes = vec![Syntax::none(), Syntax::rust(), Syntax::python(), Syntax::toml()];
+        let syntaxes = vec![
+            Syntax::none(),
+            Syntax::rust(),
+            Syntax::python(),
+            Syntax::toml(),
+        ];
 
         let mut syntax_lookup: HashMap<String, Syntax> = HashMap::new();
         for syntax in syntaxes {

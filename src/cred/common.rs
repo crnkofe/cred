@@ -127,7 +127,6 @@ pub const COMMENT: FontStyle = FontStyle {
     background_color: Color::Black,
 };
 
-
 /**
  * Strings
  */
@@ -140,11 +139,13 @@ pub const STRING: FontStyle = FontStyle {
 /**
  * Numbers
  */
+/*
 pub const NUMBER: FontStyle = FontStyle {
     font_style: rustbox::RB_NORMAL,
     foreground_color: Color::Cyan,
     background_color: Color::Black,
 };
+*/
 
 #[derive(Copy, Clone, Debug, PartialEq)]
 pub enum Coverage {
