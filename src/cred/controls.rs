@@ -770,6 +770,10 @@ impl FileBuffer {
     fn find_next_line(&self) -> usize {
         let mut end_of_line = self.text_location;
 
+        if self.contents.is_empty() {
+            return 0;
+        }
+
         if end_of_line >= self.contents.len() - 1 {
             return self.contents.len() - 1;
         }
@@ -3746,7 +3750,7 @@ impl Editor {
         // TODO: set selection state on filebuffer
         let overlay = HelpOverlay {
             title: String::from("Help"),
-            size: Size::new(3, self.window_buffer.size.columns),
+            size: Size::new(self.window_buffer.size.rows, self.window_buffer.size.columns),
         };
 
         self.window_buffer.editor_top_left = Location::new(overlay.get_size().rows, 0);
@@ -3963,7 +3967,7 @@ impl Editor {
         // Open the path in read-only mode, returns `io::Result<File>`
         let pwd_path = env::current_dir()?;
         let mut file_buffer = FileBuffer {
-            contents: Vec::new(),
+            contents: vec!['\n'],
             file_path: pwd_path.to_str().unwrap_or(&"").to_string(),
             ..FileBuffer::new(
                 Uuid::new_v4(),
