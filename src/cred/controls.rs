@@ -842,17 +842,26 @@ impl FileBuffer {
         self.view_location = Location::new(next_row, self.view_location.column);
     }
 
-    fn align_buffer_vertical_down(&mut self, window_buffer: &Buffer) {
+    fn align_buffer_vertical_down(&mut self, previous_text_location: usize, window_buffer: &Buffer, allow_minimum: bool) {
         // check if pointer is out of buffer and scroll to find it
         let text_location = self.index_to_location();
         while !is_location_in_buffer(text_location, self.view_location, window_buffer.editor_size) {
             if self.view_location.row + window_buffer.editor_size.rows > self.lines.len() {
                 break;
             }
-            self.view_location = Location::new(
-                self.view_location.row + window_buffer.editor_size.rows,
-                self.view_location.column,
+             
+            let next_view_location = Location::new(
+	            self.view_location.row + 1,
+	            self.view_location.column,
             );
+            if allow_minimum && is_location_in_buffer(text_location, next_view_location, window_buffer.editor_size) { 
+                self.view_location = next_view_location;
+            } else {
+	            self.view_location = Location::new(
+	                self.view_location.row + window_buffer.editor_size.rows,
+	                self.view_location.column,
+	            );
+            }
         }
     }
 
@@ -1003,8 +1012,9 @@ impl FileBuffer {
                     self.align_buffer_vertical_up(&window_buffer);
                 }
                 Key::Down => {
+                	let previous_location = self.text_location;
                     self.down();
-                    self.align_buffer_vertical_down(&window_buffer);
+                    self.align_buffer_vertical_down(previous_location, &window_buffer, true);
                 }
                 Key::Right => {
                     self.text_location = cmp::min(self.contents.len() - 1, self.text_location + 1);
@@ -1058,10 +1068,11 @@ impl FileBuffer {
                     if self.text_location >= self.contents.len() - 1 {
                         return Event::new();
                     }
+                    let previous_location = self.text_location;
                     for _ in 0..window_buffer.editor_size.rows {
                         self.down();
                     }
-                    self.align_buffer_vertical_down(&window_buffer);
+                    self.align_buffer_vertical_down(previous_location, &window_buffer, false);
                 }
                 Key::Esc => {
                     return Event {
@@ -1075,6 +1086,7 @@ impl FileBuffer {
                 Key::Enter => {
                     // smart tab
                     // TODO: respect either tab as tab characters or tab as spaces
+                    let previous_location = self.text_location;
                     let mut whitespace_count = 0;
                     let mut start = if self.text_location > 0 {
                         self.text_location - 1
@@ -1097,7 +1109,7 @@ impl FileBuffer {
                     for _ in 0..whitespace_count {
                         self.action_do(Action::insert(self.text_location, SPACE.to_string()));
                     }
-                    self.align_buffer_vertical_down(&window_buffer);
+                    self.align_buffer_vertical_down(previous_location, &window_buffer, false);
                 }
                 HELP_SHORTCUT => {
                     return Event {
@@ -1221,8 +1233,9 @@ impl FileBuffer {
                 self.align_buffer_vertical_up(&window_buffer);
             }
             Key::Down | Key::Char(GAME_DOWN_SHORTCUT) => {
+            	let previous_location = self.text_location;
                 self.down();
-                self.align_buffer_vertical_down(&window_buffer);
+                self.align_buffer_vertical_down(previous_location, &window_buffer, true);
             }
             Key::Right | Key::Char(GAME_RIGHT_SHORTCUT) => {
                 self.text_location = cmp::min(self.contents.len() - 1, self.text_location + 1);
@@ -1252,13 +1265,14 @@ impl FileBuffer {
                 self.align_buffer_vertical_up(&window_buffer);
             }
             Key::PageDown => {
+            	let previous_location = self.text_location;
                 if self.text_location >= self.contents.len() - 1 {
                     return Event::new();
                 }
                 for _ in 0..window_buffer.editor_size.rows {
                     self.down();
                 }
-                self.align_buffer_vertical_down(&window_buffer);
+                self.align_buffer_vertical_down(previous_location, &window_buffer, false);
             }
             Key::Esc => {
                 return Event {
@@ -1459,7 +1473,7 @@ impl FileBuffer {
         self.text_location = location;
         self.current_match = match_index;
         if self.text_location > previous_location {
-            self.align_buffer_vertical_down(&window_buffer);
+            self.align_buffer_vertical_down(previous_location, &window_buffer, false);
         } else {
             self.align_buffer_vertical_up(&window_buffer);
         }
@@ -1706,6 +1720,8 @@ struct HelpOverlay {
     title: String,
     // overlay size
     size: Size,
+    // display help text 
+    file_buffer: FileBuffer,
 }
 
 impl HandleKey for HelpOverlay {
@@ -3666,7 +3682,7 @@ impl Editor {
         {
             file_buffer.coverage = Some(Coverage::FromTo);
             file_buffer.align_buffer_vertical_up(&self.window_buffer);
-            file_buffer.align_buffer_vertical_down(&self.window_buffer);
+            file_buffer.align_buffer_vertical_down(0, &self.window_buffer, false);
         }
     }
 
@@ -3751,6 +3767,10 @@ impl Editor {
         let overlay = HelpOverlay {
             title: String::from("Help"),
             size: Size::new(self.window_buffer.size.rows, self.window_buffer.size.columns),
+            file_buffer: FileBuffer::new(
+                Uuid::new_v4(),
+                self.syntax_highlight.find_syntax(PathBuf::new()),
+            ),
         };
 
         self.window_buffer.editor_top_left = Location::new(overlay.get_size().rows, 0);
