@@ -22,6 +22,7 @@
  * SOFTWARE.
  */
 use std::cmp;
+use std::include_str;
 use std::cmp::Ordering;
 use std::env;
 use std::error::Error;
@@ -1528,7 +1529,6 @@ impl Render for FileBuffer {
         );
 
         let left_border_column = buffer.editor_top_left.column;
-        let content_width = buffer.size.columns;
         let size = Size{
             rows: buffer.size.rows - 2 * buffer.editor_top_left.column,
             columns: buffer.size.columns - 2 * buffer.editor_top_left.row,
@@ -1831,6 +1831,12 @@ impl HandleKey for UndoRedoOverlay {
                     ..Event::new()
                 };
             }
+            HELP_SHORTCUT => {
+                return Event {
+                    window_event: Some(WindowEvent::open(ControlType::HelpOverlay)),
+                    ..Event::new()
+                };
+            }
             Key::Tab => {
                 let count = UndoRedoAction::iter().count();
                 let index = UndoRedoAction::iter()
@@ -2101,6 +2107,12 @@ impl HandleKey for SearchOverlay {
                     self.pattern_location += 4;
                 }
                 return Event::new();
+            }
+            HELP_SHORTCUT => {
+                return Event {
+                    window_event: Some(WindowEvent::open(ControlType::HelpOverlay)),
+                    ..Event::new()
+                };
             }
             Key::Char(c) => {
                 if ekey.modifiers.ctrl && c == CTRL_MENU_SHORTCUT {
@@ -3159,6 +3171,12 @@ impl HandleKey for OpenFileMenu {
             Key::Right => {
                 // TODO:
             }
+            HELP_SHORTCUT => {
+                return Event {
+                    window_event: Some(WindowEvent::open(ControlType::HelpOverlay)),
+                    ..Event::new()
+                };
+            }
             Key::Enter | Key::Char(SPACE) => match self.mode {
                 OpenMenuMode::File => {
                     let selected_path = self.select_item();
@@ -3813,42 +3831,24 @@ impl Editor {
         };
 
         if let Some(control_reference) = self.controls.last() {
-            let file_name = match control_reference.control_type {
-                ControlType::FileBuffer => "help/buffer.md",
-                ControlType::Menu => "help/menu.md",
-                ControlType::OpenFileMenu => "help/openfile.md",
-                ControlType::YesNoDialog => "help/dialog.md",
-                ControlType::InputDialog => "help/inputdialog.md",
-                ControlType::UndoRedoOverlay => "help/undoredo.md",
-                ControlType::SelectionOverlay => "help/selection.md",
-                ControlType::SearchOverlay => "help/search.md",
+            let file_contents = match control_reference.control_type {
+                ControlType::FileBuffer => include_str!("help/buffer.md"),
+                ControlType::Menu => include_str!("help/menu.md"),
+                ControlType::OpenFileMenu => include_str!("help/openfile.md"),
+                ControlType::YesNoDialog => include_str!("help/dialog.md"),
+                ControlType::InputDialog => include_str!("help/inputdialog.md"),
+                ControlType::UndoRedoOverlay => include_str!("help/undoredo.md"),
+                ControlType::SelectionOverlay => include_str!("help/selection.md"),
+                ControlType::SearchOverlay => include_str!("help/search.md"),
                 _ => "unknown",
             };
 
-            if let Ok(pwd_path) = env::current_dir() {
-               // let raw_path = String::from(format!("{}{}", pwd_path.to_str().unwrap_or(""), file_name));
-                let file_path = Path::new(&pwd_path).join(file_name);
-                // Open the path in read-only mode, returns `io::Result<File>`
-                let file = match OpenOptions::new().read(true).open(&file_path) {
-                    Err(why) => {
-                        log::info!("Couldn't create file: {:?}", why);
-                        panic!("Couldn't create file: {}", file_path.display());
-                    }
-                    Ok(file) => file,
-                };
-
-                let buf_reader = BufReader::with_capacity(1024 * 10, file);
-
-                for line in buf_reader.lines() {
-                    if let Ok(unwrapped_line) = line {
-                        let mut char_vec: Vec<char> = unwrapped_line.chars().collect();
-                        char_vec.push(NEWLINE);
-                        overlay.file_buffer.lines.push_line(char_vec.len());
-                        overlay.file_buffer.contents.append(&mut char_vec);
-                    }
-                }
-            } else {
-                log::warn!("Can't determine current path (pwd)");
+                
+            for line in file_contents.split(NEWLINE) {
+                let mut char_vec: Vec<char> = line.chars().collect();
+                char_vec.push(NEWLINE);
+                overlay.file_buffer.lines.push_line(char_vec.len());
+                overlay.file_buffer.contents.append(&mut char_vec);
             }
         }
 
