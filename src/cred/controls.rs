@@ -531,7 +531,7 @@ impl Buffer {
         }
     }
 
-    fn clear_row(&self, current_location: Location, view_location: Location) {
+    fn clear_row(&self, current_location: Location, view_location: Location, size: Size) {
         for remaining_column in current_location.column..self.size.columns {
             let remaining_location = Location::new(current_location.row, remaining_column);
             self.write(
@@ -539,6 +539,7 @@ impl Buffer {
                 remaining_location,
                 view_location,
                 NORMAL_STYLE,
+                size,
             );
         }
     }
@@ -569,8 +570,9 @@ impl Buffer {
         text_location: Location,
         view_location: Location,
         style: FontStyle,
+        size: Size,
     ) {
-        if !is_location_in_buffer(text_location, view_location, self.size) {
+        if !is_location_in_buffer(text_location, view_location, size) {
             return;
         }
         let cropped_location = crop_location_with_buffer(text_location, view_location);
@@ -1525,7 +1527,12 @@ impl Render for FileBuffer {
             &(self.get_slice_string(start_of_syntax_highlight, end_of_syntax_highlight)),
         );
 
-        log::info!("asdas {:?}", self.contents);
+        let left_border_column = buffer.editor_top_left.column;
+        let content_width = buffer.size.columns;
+        let size = Size{
+            rows: buffer.size.rows - 2 * buffer.editor_top_left.column,
+            columns: buffer.size.columns - 2 * buffer.editor_top_left.row,
+        };
 
         // TODO: in case of selection mode render selection
         for index in start_of_render..self.contents.len() {
@@ -1564,6 +1571,7 @@ impl Render for FileBuffer {
                         current_location,
                         view_location,
                         selected_style,
+                        size
                     );
 
                     if current_character == TAB {
@@ -1582,6 +1590,7 @@ impl Render for FileBuffer {
                                 tab_location,
                                 view_location,
                                 tab_style.clone(),
+                                size
                             );
                         }
                     }
@@ -1591,6 +1600,7 @@ impl Render for FileBuffer {
                         current_location,
                         view_location,
                         selected_style,
+                        size
                     );
                 }
 
@@ -1605,8 +1615,8 @@ impl Render for FileBuffer {
                         row: current_location.row,
                         column: current_location.column + 1,
                     };
-                    buffer.clear_row(next_column, view_location);
-                    current_location = Location::new(current_location.row + 1, 0);
+                    buffer.clear_row(next_column, view_location, size);
+                    current_location = Location::new(current_location.row + 1, left_border_column);
                 } else {
                     current_location =
                         Location::new(current_location.row, current_location.column + 1);
@@ -1625,6 +1635,7 @@ impl Render for FileBuffer {
                         tab_location,
                         view_location,
                         tab_style.clone(),
+                        size
                     );
                 }
                 current_location = Location::new(
@@ -1632,8 +1643,8 @@ impl Render for FileBuffer {
                     current_location.column + TAB_CHARS_COUNT,
                 );
             } else if current_character == NEWLINE {
-                buffer.clear_row(current_location, view_location);
-                current_location = Location::new(current_location.row + 1, 0);
+                buffer.clear_row(current_location, view_location, size);
+                current_location = Location::new(current_location.row + 1, left_border_column);
             } else {
                 let style = if char_selected { style.invert() } else { style };
                 buffer.write(
@@ -1641,6 +1652,7 @@ impl Render for FileBuffer {
                     current_location,
                     view_location,
                     style,
+                    size
                 );
                 current_location = Location::new(current_location.row, current_location.column + 1);
             }
@@ -1655,9 +1667,10 @@ impl Render for FileBuffer {
                     index_location,
                     view_location,
                     INVISIBLE_STYLE,
+                    size
                 );
             }
-            current_location = Location::new(current_location.row + 1, 0);
+            current_location = Location::new(current_location.row + 1, left_border_column);
         }
     }
 }
@@ -1829,7 +1842,6 @@ impl HandleKey for UndoRedoOverlay {
                 return Event { ..Event::new() };
             }
             _ => {
-                log::info!("Key for menu: {:?}", ekey);
                 // skip unknown chars
             }
         }
@@ -2935,7 +2947,6 @@ impl OpenFileMenu {
             {
                 continue;
             }
-            log::info!("Original: {:?}", original_item);
 
             if self.pattern != "" && original_item.is_dir {
                 continue;
@@ -3539,7 +3550,6 @@ impl Editor {
     }
 
     fn close_save_dialog(&mut self, uuid: Uuid) {
-        log::info!("Close dialog with uuid: {:?}", uuid);
         self.input_dialog_controls.remove(&uuid);
         self.controls
             .retain(|c| c.control_type != ControlType::YesNoDialog);
@@ -3828,7 +3838,6 @@ impl Editor {
                         let mut char_vec: Vec<char> = unwrapped_line.chars().collect();
                         char_vec.push(NEWLINE);
                         overlay.file_buffer.lines.push_line(char_vec.len());
-                        log::info!("chars: {:?}", char_vec);
                         overlay.file_buffer.contents.append(&mut char_vec);
                     }
                 }
