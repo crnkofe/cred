@@ -1922,6 +1922,12 @@ impl HandleKey for SelectionOverlay {
                     ..Event::key(ekey)
                 };
             }
+            HELP_SHORTCUT => {
+                return Event {
+                    window_event: Some(WindowEvent::open(ControlType::HelpOverlay)),
+                    ..Event::new()
+                };
+            }
             Key::Enter => {
                 // TODO: take selection and paste to clipboard
                 return Event {
