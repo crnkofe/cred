@@ -2458,6 +2458,12 @@ impl HandleKey for Menu {
                 self.down();
                 return Event::new();
             }
+            HELP_SHORTCUT => {
+                return Event {
+                    window_event: Some(WindowEvent::open(ControlType::HelpOverlay)),
+                    ..Event::new()
+                };
+            }
             Key::Char(input_char) => {
                 if ekey.modifiers.ctrl && input_char == CTRL_MENU_SHORTCUT {
                     return Event {
