@@ -3470,6 +3470,8 @@ impl Editor {
             panic!("Failed creating an empty buffer.");
         }
 
+        self.open_help_overlay(true);
+
         Ok("".to_string())
     }
 
@@ -3818,7 +3820,7 @@ impl Editor {
             .retain(|c| c.control_type != ControlType::SearchOverlay);
     }
 
-    fn open_help_overlay(&mut self) {
+    fn open_help_overlay(&mut self, show_intro: bool) {
         if self.is_displayed_on_top(ControlType::HelpOverlay) {
             return;
         }
@@ -3837,18 +3839,24 @@ impl Editor {
         };
 
         if let Some(control_reference) = self.controls.last() {
-            let file_contents = match control_reference.control_type {
-                ControlType::FileBuffer => include_str!("help/buffer.md"),
-                ControlType::Menu => include_str!("help/menu.md"),
-                ControlType::OpenFileMenu => include_str!("help/openfile.md"),
-                ControlType::YesNoDialog => include_str!("help/dialog.md"),
-                ControlType::InputDialog => include_str!("help/inputdialog.md"),
-                ControlType::UndoRedoOverlay => include_str!("help/undoredo.md"),
-                ControlType::SelectionOverlay => include_str!("help/selection.md"),
-                ControlType::SearchOverlay => include_str!("help/search.md"),
-                _ => "unknown",
+            let mut file_contents = "";
+            let relevant_control_type = if show_intro {
+                file_contents = include_str!("help/intro.md");
+            } else {
+                file_contents = match control_reference.control_type {
+                    ControlType::FileBuffer => include_str!("help/buffer.md"),
+                    ControlType::Menu => include_str!("help/menu.md"),
+                    ControlType::OpenFileMenu => include_str!("help/openfile.md"),
+                    ControlType::UndoRedoOverlay => include_str!("help/undoredo.md"),
+                    ControlType::SelectionOverlay => include_str!("help/selection.md"),
+                    ControlType::SearchOverlay => include_str!("help/search.md"),
+                    _ => { "" }
+                };
             };
 
+            if file_contents == "" {
+                return;
+            }
                 
             for line in file_contents.split(NEWLINE) {
                 let mut char_vec: Vec<char> = line.chars().collect();
@@ -4465,7 +4473,7 @@ impl HandleWindowEvent for Editor {
                 self.open_select_overlay();
             }
             ControlType::HelpOverlay => {
-                self.open_help_overlay();
+                self.open_help_overlay(false);
             }
             ControlType::SearchOverlay => {
                 let filter_mode = self.is_displayed_on_top(ControlType::OpenFileMenu);
