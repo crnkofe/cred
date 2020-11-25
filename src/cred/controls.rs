@@ -3476,10 +3476,10 @@ impl Editor {
             } else {
                 // show nice message to user that file path does not exist
             }
-        } else {
-            // show help overlay only when no files opened
-            self.open_help_overlay(true);
-        }
+        } 
+
+        // show help overlay only when no files opened
+        self.open_help_overlay(true);
 
         if self.file_buffer_controls.is_empty() && self.create_empty_file_buffer().is_err() {
             panic!("Failed creating an empty buffer.");
@@ -3853,7 +3853,7 @@ impl Editor {
 
         if let Some(control_reference) = self.controls.last() {
             let mut file_contents = "";
-            let relevant_control_type = if show_intro {
+            if show_intro {
                 file_contents = include_str!("help/intro.md");
             } else {
                 file_contents = match control_reference.control_type {
@@ -3865,12 +3865,20 @@ impl Editor {
                     ControlType::SearchOverlay => include_str!("help/search.md"),
                     _ => { "" }
                 };
-            };
+            }
 
             if file_contents == "" {
                 return;
             }
                 
+            for line in file_contents.split(NEWLINE) {
+                let mut char_vec: Vec<char> = line.chars().collect();
+                char_vec.push(NEWLINE);
+                overlay.file_buffer.lines.push_line(char_vec.len());
+                overlay.file_buffer.contents.append(&mut char_vec);
+            }
+        } else {
+            let file_contents = include_str!("help/intro.md");
             for line in file_contents.split(NEWLINE) {
                 let mut char_vec: Vec<char> = line.chars().collect();
                 char_vec.push(NEWLINE);
