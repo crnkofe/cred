@@ -22,12 +22,12 @@
  * SOFTWARE.
  */
 use std::cmp;
-use std::include_str;
 use std::cmp::Ordering;
 use std::env;
 use std::error::Error;
 use std::fs;
 use std::fs::OpenOptions;
+use std::include_str;
 use std::io::prelude::*;
 use std::io::BufReader;
 use std::panic;
@@ -256,11 +256,14 @@ trait Window {
                     buffer.write_direct(&String::from(bottom_left_edge), location, NORMAL_STYLE);
                 } else if row == top_left.row && column == top_left.column + size.columns - 1 {
                     buffer.write_direct(&String::from(top_right_edge), location, NORMAL_STYLE);
-                } else if row == top_left.row + size.rows - 1 && column == top_left.column + size.columns - 1 {
+                } else if row == top_left.row + size.rows - 1
+                    && column == top_left.column + size.columns - 1
+                {
                     buffer.write_direct(&String::from(bottom_right_edge), location, NORMAL_STYLE);
                 } else if row == top_left.row || row == top_left.row + size.rows - 1 {
                     buffer.write_direct(&String::from(horizontal_line), location, NORMAL_STYLE);
-                } else if column == top_left.column || column == top_left.column + size.columns - 1 {
+                } else if column == top_left.column || column == top_left.column + size.columns - 1
+                {
                     buffer.write_direct(&String::from(vertical_line), location, NORMAL_STYLE);
                 } else {
                     buffer.write_direct(&String::from(SPACE_STRING), location, NORMAL_STYLE);
@@ -538,17 +541,6 @@ impl Buffer {
             match &EDITOR_BUFFER {
                 Some(rust_box) => {
                     rust_box.clear();
-                }
-                None => {}
-            }
-        }
-    }
-
-    fn clear_screen(&self) {
-        unsafe {
-            match &EDITOR_BUFFER {
-                Some(rust_box) => {
-                    rust_box.clear_screen();
                 }
                 None => {}
             }
@@ -842,7 +834,12 @@ impl FileBuffer {
 
     fn align_buffer_horizontal(&mut self, window_buffer: &Buffer) {
         let text_location = self.index_to_location();
-        if !is_location_in_buffer(text_location, self.view_location, window_buffer.editor_top_left, window_buffer.editor_size) {
+        if !is_location_in_buffer(
+            text_location,
+            self.view_location,
+            window_buffer.editor_top_left,
+            window_buffer.editor_size,
+        ) {
             self.view_location.column = window_buffer.editor_size.columns
                 * (text_location.column / window_buffer.editor_size.columns);
         }
@@ -888,7 +885,12 @@ impl FileBuffer {
     fn align_buffer_vertical_down(&mut self, window_buffer: &Buffer, allow_minimum: bool) {
         // check if pointer is out of buffer and scroll to find it
         let text_location = self.index_to_location();
-        while !is_location_in_buffer(text_location, self.view_location, window_buffer.editor_top_left, window_buffer.editor_size) {
+        while !is_location_in_buffer(
+            text_location,
+            self.view_location,
+            window_buffer.editor_top_left,
+            window_buffer.editor_size,
+        ) {
             if self.view_location.row + window_buffer.editor_size.rows > self.lines.len() {
                 break;
             }
@@ -1559,8 +1561,8 @@ impl Render for FileBuffer {
         let left_border_column = buffer.editor_top_left.column;
         // TODO: Revise rendering of a box in a larger box (should be an intersection)
         let size = Size {
-            rows: buffer.editor_size.rows, // * buffer.editor_top_left.column,
-            columns: buffer.editor_size.columns // - 2 * buffer.editor_top_left.row,
+            rows: buffer.editor_size.rows,       // * buffer.editor_top_left.column,
+            columns: buffer.editor_size.columns, // - 2 * buffer.editor_top_left.row,
         };
 
         // TODO: in case of selection mode render selection
@@ -1601,7 +1603,7 @@ impl Render for FileBuffer {
                         view_location,
                         selected_style,
                         buffer.editor_top_left,
-                        size
+                        size,
                     );
 
                     if current_character == TAB {
@@ -1621,7 +1623,7 @@ impl Render for FileBuffer {
                                 view_location,
                                 tab_style.clone(),
                                 buffer.editor_top_left,
-                                size
+                                size,
                             );
                         }
                     }
@@ -1632,7 +1634,7 @@ impl Render for FileBuffer {
                         view_location,
                         selected_style,
                         buffer.editor_top_left,
-                        size
+                        size,
                     );
                 }
 
@@ -1668,7 +1670,7 @@ impl Render for FileBuffer {
                         view_location,
                         tab_style.clone(),
                         buffer.editor_top_left,
-                        size
+                        size,
                     );
                 }
                 current_location = Location::new(
@@ -1686,14 +1688,14 @@ impl Render for FileBuffer {
                     view_location,
                     style,
                     buffer.editor_top_left,
-                    size
+                    size,
                 );
                 current_location = Location::new(current_location.row, current_location.column + 1);
             }
         }
 
         while current_location.row < view_location.row + buffer.size.rows {
-            if current_location.row >= (buffer.editor_size.rows + view_location.row)  {
+            if current_location.row >= (buffer.editor_size.rows + view_location.row) {
                 break;
             }
 
@@ -1706,7 +1708,7 @@ impl Render for FileBuffer {
                     view_location,
                     INVISIBLE_STYLE,
                     buffer.editor_top_left,
-                    size
+                    size,
                 );
             }
             current_location = Location::new(current_location.row + 1, left_border_column);
@@ -1792,7 +1794,7 @@ struct HelpOverlay {
 }
 
 impl HandleKey for HelpOverlay {
-    fn handle_key(&mut self, ekey: ExtendedKey, _window_buffer: Buffer) -> Event {
+    fn handle_key(&mut self, _ekey: ExtendedKey, _window_buffer: Buffer) -> Event {
         Event {
             window_event: Some(WindowEvent::close(ControlType::HelpOverlay, None)),
             ..Event::new()
@@ -1807,9 +1809,9 @@ impl Render for HelpOverlay {
         let modified_buffer = Buffer {
             editor_top_left: Location {
                 row: self.location.row + 1,
-                column: self.location.column + 1
+                column: self.location.column + 1,
             },
-            editor_size: Size::new(self.size.rows-2, self.size.columns-2),
+            editor_size: Size::new(self.size.rows - 2, self.size.columns - 2),
             ..*buffer
         };
         self.file_buffer.render(&modified_buffer);
@@ -3502,7 +3504,7 @@ impl Editor {
             } else {
                 // show nice message to user that file path does not exist
             }
-        } 
+        }
 
         // show help overlay only when no files opened
         self.open_help_overlay(true);
@@ -3872,7 +3874,7 @@ impl Editor {
             title: String::from("Help"),
             location: Location::new(
                 (self.window_buffer.size.rows - height) / 2,
-                (self.window_buffer.size.columns - width) / 2
+                (self.window_buffer.size.columns - width) / 2,
             ),
             size: Size::new(height, width),
             file_buffer: FileBuffer::new(
@@ -3882,7 +3884,7 @@ impl Editor {
         };
 
         if let Some(control_reference) = self.controls.last() {
-            let mut file_contents = "";
+            let file_contents;
             if show_intro {
                 file_contents = include_str!("help/intro.md");
             } else {
@@ -3893,14 +3895,14 @@ impl Editor {
                     ControlType::UndoRedoOverlay => include_str!("help/undoredo.md"),
                     ControlType::SelectionOverlay => include_str!("help/selection.md"),
                     ControlType::SearchOverlay => include_str!("help/search.md"),
-                    _ => { "" }
+                    _ => "",
                 };
             }
 
             if file_contents == "" {
                 return;
             }
-                
+
             for line in file_contents.split(NEWLINE) {
                 let mut char_vec: Vec<char> = line.chars().collect();
                 char_vec.push(NEWLINE);
@@ -4442,8 +4444,9 @@ impl Editor {
                 if control_reference.is_overlay() {
                     // check if underlying control is open file and render it instead
                     if self.controls.len() > 2
-                        && ((self.controls[self.controls.len() - 2].control_type == ControlType::OpenFileMenu) || 
-                            (control_reference.control_type == ControlType::HelpOverlay))
+                        && ((self.controls[self.controls.len() - 2].control_type
+                            == ControlType::OpenFileMenu)
+                            || (control_reference.control_type == ControlType::HelpOverlay))
                     {
                         match self.find_renderable_control(self.controls[self.controls.len() - 2]) {
                             Some(renderable_control) => {
@@ -4584,7 +4587,12 @@ impl HandleWindowEvent for Editor {
     }
 }
 
-fn is_location_in_buffer(text_location: Location, view_location: Location, top_left: Location, size: Size) -> bool {
+fn is_location_in_buffer(
+    text_location: Location,
+    view_location: Location,
+    top_left: Location,
+    size: Size,
+) -> bool {
     text_location.row >= (top_left.row + view_location.row)
         && text_location.column >= (top_left.column + view_location.column)
         && text_location.row < (top_left.row + view_location.row + size.rows)

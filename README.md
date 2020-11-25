@@ -41,6 +41,16 @@ On Open File/Buffer windows:
 
 Rust and Python have partial syntax highlighting support.
 
+## Development
+
+Make sure to run
+```bash
+. ./check.sh
+```
+before pushing and merging.
+
+Github actions also trigger on each push. See .github/workflows/runtest.yml for details.
+
 # TODO
 
 Assorted ideas for future releases:
