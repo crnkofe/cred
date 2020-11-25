@@ -234,16 +234,9 @@ mod tests {
         let mut editor = Editor::new();
         assert_eq!(true, editor.init(OutputMode::NoOutput).is_ok());
 
-        let hide_help = Event::KeyEvent(ExtendedKey::new(
-            Key::Esc,
-            Modifiers {
-                ..Modifiers::new()
-            },
-        ));
-        assert_eq!(
-            true,
-            editor.handle_event_option(Some(Ok(hide_help)))
-        );
+        let hide_help =
+            Event::KeyEvent(ExtendedKey::new(Key::Esc, Modifiers { ..Modifiers::new() }));
+        assert_eq!(true, editor.handle_event_option(Some(Ok(hide_help))));
 
         let expected_result = String::from("Lorem ipsum dolor sit amet");
         for c in expected_result.chars() {
@@ -282,12 +275,8 @@ mod tests {
         let mut editor = Editor::new();
         assert_eq!(true, editor.init(OutputMode::NoOutput).is_ok());
 
-        let hide_help = Event::KeyEvent(ExtendedKey::new(
-            Key::Esc,
-            Modifiers {
-                ..Modifiers::new()
-            },
-        ));
+        let hide_help =
+            Event::KeyEvent(ExtendedKey::new(Key::Esc, Modifiers { ..Modifiers::new() }));
 
         let event_menu = Event::KeyEvent(ExtendedKey::new(
             Key::Char('d'),
@@ -356,12 +345,8 @@ mod tests {
         let mut editor = Editor::new();
         assert_eq!(true, editor.init(OutputMode::NoOutput).is_ok());
 
-        let hide_help = Event::KeyEvent(ExtendedKey::new(
-            Key::Esc,
-            Modifiers {
-                ..Modifiers::new()
-            },
-        ));
+        let hide_help =
+            Event::KeyEvent(ExtendedKey::new(Key::Esc, Modifiers { ..Modifiers::new() }));
         assert_eq!(true, editor.handle_event_option(Some(Ok(hide_help))));
 
         let expected_result = String::from("Lorem ipsum dolor sit amet");
@@ -396,12 +381,8 @@ mod tests {
         let mut editor = Editor::new();
         assert_eq!(true, editor.init(OutputMode::NoOutput).is_ok());
 
-        let hide_help = Event::KeyEvent(ExtendedKey::new(
-            Key::Esc,
-            Modifiers {
-                ..Modifiers::new()
-            },
-        ));
+        let hide_help =
+            Event::KeyEvent(ExtendedKey::new(Key::Esc, Modifiers { ..Modifiers::new() }));
         assert_eq!(true, editor.handle_event_option(Some(Ok(hide_help))));
 
         let expected_result = String::from("Lorem ipsum dolor sit amet");
