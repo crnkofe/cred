@@ -1793,13 +1793,9 @@ struct HelpOverlay {
 
 impl HandleKey for HelpOverlay {
     fn handle_key(&mut self, ekey: ExtendedKey, _window_buffer: Buffer) -> Event {
-        if !ekey.modifiers.ctrl {
-            Event {
-                window_event: Some(WindowEvent::close(ControlType::HelpOverlay, None)),
-                ..Event::new()
-            }
-        } else {
-            Event::new()
+        Event {
+            window_event: Some(WindowEvent::close(ControlType::HelpOverlay, None)),
+            ..Event::new()
         }
     }
 }
@@ -4446,13 +4442,21 @@ impl Editor {
                 if control_reference.is_overlay() {
                     // check if underlying control is open file and render it instead
                     if self.controls.len() > 2
-                        && self.controls[self.controls.len() - 2].control_type
-                            == ControlType::OpenFileMenu
+                        && ((self.controls[self.controls.len() - 2].control_type == ControlType::OpenFileMenu) || 
+                            (control_reference.control_type == ControlType::HelpOverlay))
                     {
-                        let open_file_control = self.controls[self.controls.len() - 2];
-
-                        self.open_file_controls[&open_file_control.uuid]
-                            .render(&self.window_buffer);
+                        match self.find_renderable_control(self.controls[self.controls.len() - 2]) {
+                            Some(renderable_control) => {
+                                renderable_control.render(&self.window_buffer);
+                            }
+                            None => {
+                                // dev error
+                                log::error!(
+                                    "Failed to find a control with uuid: {}",
+                                    control_reference.uuid
+                                );
+                            }
+                        }
                     } else if let Some(file_buffer) = self
                         .file_buffer_controls
                         .get_mut(&self.active_file_buffer.unwrap())

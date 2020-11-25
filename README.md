@@ -20,7 +20,9 @@ From main menu you can Create, Save, Open or Quit.
 
 ## Editing
 
-Text input is WYSIWYG. 
+Text input is WYSIWYG.
+
+For help press F1.
 
 Common editing functions:
 * copy - press *CTRL+c*, then *Tab* to toggle between different modes, *Space* to select start of copy area and *Enter* to end copy
