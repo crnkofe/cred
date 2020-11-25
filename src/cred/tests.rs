@@ -234,6 +234,17 @@ mod tests {
         let mut editor = Editor::new();
         assert_eq!(true, editor.init(OutputMode::NoOutput).is_ok());
 
+        let hide_help = Event::KeyEvent(ExtendedKey::new(
+            Key::Esc,
+            Modifiers {
+                ..Modifiers::new()
+            },
+        ));
+        assert_eq!(
+            true,
+            editor.handle_event_option(Some(Ok(hide_help)))
+        );
+
         let expected_result = String::from("Lorem ipsum dolor sit amet");
         for c in expected_result.chars() {
             let event = Event::KeyEvent(ExtendedKey::new(Key::Char(c), Modifiers::new()));
@@ -242,7 +253,7 @@ mod tests {
 
         let file_buffer = editor.get_active_file_buffer().unwrap();
         let slice = file_buffer.get_slice_string(0, 100);
-        assert_eq!("Lorem ipsum dolor sit amet", slice);
+        assert_eq!("Lorem ipsum dolor sit amet\n", slice);
     }
 
     #[test]
@@ -271,6 +282,13 @@ mod tests {
         let mut editor = Editor::new();
         assert_eq!(true, editor.init(OutputMode::NoOutput).is_ok());
 
+        let hide_help = Event::KeyEvent(ExtendedKey::new(
+            Key::Esc,
+            Modifiers {
+                ..Modifiers::new()
+            },
+        ));
+
         let event_menu = Event::KeyEvent(ExtendedKey::new(
             Key::Char('d'),
             Modifiers {
@@ -280,6 +298,7 @@ mod tests {
         ));
         let exit_shortcut = Event::KeyEvent(ExtendedKey::new(Key::Char('x'), Modifiers::new()));
 
+        assert_eq!(true, editor.handle_event_option(Some(Ok(hide_help))));
         assert_eq!(true, editor.handle_event_option(Some(Ok(event_menu))));
         assert_eq!(false, editor.handle_event_option(Some(Ok(exit_shortcut))));
     }
@@ -337,6 +356,14 @@ mod tests {
         let mut editor = Editor::new();
         assert_eq!(true, editor.init(OutputMode::NoOutput).is_ok());
 
+        let hide_help = Event::KeyEvent(ExtendedKey::new(
+            Key::Esc,
+            Modifiers {
+                ..Modifiers::new()
+            },
+        ));
+        assert_eq!(true, editor.handle_event_option(Some(Ok(hide_help))));
+
         let expected_result = String::from("Lorem ipsum dolor sit amet");
         for c in expected_result.chars() {
             let event = Event::KeyEvent(ExtendedKey::new(Key::Char(c), Modifiers::new()));
@@ -360,7 +387,7 @@ mod tests {
 
         let file_buffer = editor.get_active_file_buffer_mut().unwrap();
         let slice = file_buffer.get_slice_string(0, 5);
-        assert_eq!("", slice);
+        assert_eq!("\n", slice);
     }
 
     #[test]
@@ -368,6 +395,14 @@ mod tests {
         assert_eq!(true, setup().is_ok());
         let mut editor = Editor::new();
         assert_eq!(true, editor.init(OutputMode::NoOutput).is_ok());
+
+        let hide_help = Event::KeyEvent(ExtendedKey::new(
+            Key::Esc,
+            Modifiers {
+                ..Modifiers::new()
+            },
+        ));
+        assert_eq!(true, editor.handle_event_option(Some(Ok(hide_help))));
 
         let expected_result = String::from("Lorem ipsum dolor sit amet");
         for c in expected_result.chars() {
@@ -401,6 +436,6 @@ mod tests {
 
         let file_buffer = editor.get_active_file_buffer_mut().unwrap();
         let slice = file_buffer.get_slice_string(0, 50);
-        assert_eq!(expected_result, slice);
+        assert_eq!(expected_result + "\n", slice);
     }
 }
