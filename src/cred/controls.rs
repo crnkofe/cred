@@ -221,12 +221,17 @@ trait Window {
         let title_offset = 2;
         let title_row_offset = buffer.editor_top_left.row;
 
+        let top_left_edge = '\u{250C}';
+        let top_right_edge = '\u{2510}';
+        let bottom_left_edge = '\u{2514}';
+        let bottom_right_edge = '\u{2518}';
+        let horizontal_line = '\u{2500}';
+        let vertical_line = '\u{2502}';
+
         let top_left = self.get_origin();
         let size = self.get_size();
         let title = self.get_title();
         // render outline
-        let i = "|";
-        let dash = "-";
         for row in top_left.row..top_left.row + size.rows {
             for column in top_left.column..top_left.column + size.columns {
                 let location = Location::new(row, column);
@@ -245,11 +250,18 @@ trait Window {
                         }
                     }
                     buffer.write_direct(&char_string, location, NORMAL_STYLE);
+                } else if row == top_left.row && column == top_left.column {
+                    buffer.write_direct(&String::from(top_left_edge), location, NORMAL_STYLE);
+                } else if row == top_left.row + size.rows - 1 && column == top_left.column {
+                    buffer.write_direct(&String::from(bottom_left_edge), location, NORMAL_STYLE);
+                } else if row == top_left.row && column == top_left.column + size.columns - 1 {
+                    buffer.write_direct(&String::from(top_right_edge), location, NORMAL_STYLE);
+                } else if row == top_left.row + size.rows - 1 && column == top_left.column + size.columns - 1 {
+                    buffer.write_direct(&String::from(bottom_right_edge), location, NORMAL_STYLE);
                 } else if row == top_left.row || row == top_left.row + size.rows - 1 {
-                    buffer.write_direct(&String::from(dash), location, NORMAL_STYLE);
-                } else if column == top_left.column || column == top_left.column + size.columns - 1
-                {
-                    buffer.write_direct(&String::from(i), location, NORMAL_STYLE);
+                    buffer.write_direct(&String::from(horizontal_line), location, NORMAL_STYLE);
+                } else if column == top_left.column || column == top_left.column + size.columns - 1 {
+                    buffer.write_direct(&String::from(vertical_line), location, NORMAL_STYLE);
                 } else {
                     buffer.write_direct(&String::from(SPACE_STRING), location, NORMAL_STYLE);
                 }
@@ -3464,13 +3476,14 @@ impl Editor {
             } else {
                 // show nice message to user that file path does not exist
             }
+        } else {
+            // show help overlay only when no files opened
+            self.open_help_overlay(true);
         }
 
         if self.file_buffer_controls.is_empty() && self.create_empty_file_buffer().is_err() {
             panic!("Failed creating an empty buffer.");
         }
-
-        self.open_help_overlay(true);
 
         Ok("".to_string())
     }
