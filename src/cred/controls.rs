@@ -544,6 +544,17 @@ impl Buffer {
         }
     }
 
+    fn clear_screen(&self) {
+        unsafe {
+            match &EDITOR_BUFFER {
+                Some(rust_box) => {
+                    rust_box.clear_screen();
+                }
+                None => {}
+            }
+        }
+    }
+
     fn clear_row(&self, current_location: Location, view_location: Location, size: Size) {
         for remaining_column in current_location.column..self.size.columns {
             let remaining_location = Location::new(current_location.row, remaining_column);
@@ -552,6 +563,7 @@ impl Buffer {
                 remaining_location,
                 view_location,
                 NORMAL_STYLE,
+                Location::new(0, 0), // TODO
                 size,
             );
         }
@@ -583,9 +595,11 @@ impl Buffer {
         text_location: Location,
         view_location: Location,
         style: FontStyle,
+        top_left: Location,
         size: Size,
     ) {
-        if !is_location_in_buffer(text_location, view_location, size) {
+        if !is_location_in_buffer(text_location, view_location, top_left, size) {
+            log::info!("Location {:?} not in buffer: {:?} of size {:?}", text_location, view_location, size);
             return;
         }
         let cropped_location = crop_location_with_buffer(text_location, view_location);
@@ -829,7 +843,7 @@ impl FileBuffer {
 
     fn align_buffer_horizontal(&mut self, window_buffer: &Buffer) {
         let text_location = self.index_to_location();
-        if !is_location_in_buffer(text_location, self.view_location, window_buffer.editor_size) {
+        if !is_location_in_buffer(text_location, self.view_location, window_buffer.editor_top_left, window_buffer.editor_size) {
             self.view_location.column = window_buffer.editor_size.columns
                 * (text_location.column / window_buffer.editor_size.columns);
         }
@@ -842,6 +856,7 @@ impl FileBuffer {
         while !is_location_in_buffer(
             text_location,
             Location::new(next_row, self.view_location.column),
+            window_buffer.editor_top_left,
             window_buffer.editor_size,
         ) {
             if next_row == 0 {
@@ -852,6 +867,7 @@ impl FileBuffer {
                 && is_location_in_buffer(
                     text_location,
                     Location::new(next_row - 1, self.view_location.column),
+                    window_buffer.editor_top_left,
                     window_buffer.editor_size,
                 )
             {
@@ -873,7 +889,7 @@ impl FileBuffer {
     fn align_buffer_vertical_down(&mut self, window_buffer: &Buffer, allow_minimum: bool) {
         // check if pointer is out of buffer and scroll to find it
         let text_location = self.index_to_location();
-        while !is_location_in_buffer(text_location, self.view_location, window_buffer.editor_size) {
+        while !is_location_in_buffer(text_location, self.view_location, window_buffer.editor_top_left, window_buffer.editor_size) {
             if self.view_location.row + window_buffer.editor_size.rows > self.lines.len() {
                 break;
             }
@@ -884,6 +900,7 @@ impl FileBuffer {
                 && is_location_in_buffer(
                     text_location,
                     next_view_location,
+                    window_buffer.editor_top_left,
                     window_buffer.editor_size,
                 )
             {
@@ -1543,8 +1560,8 @@ impl Render for FileBuffer {
         let left_border_column = buffer.editor_top_left.column;
         // TODO: Revise rendering of a box in a larger box (should be an intersection)
         let size = Size {
-            rows: buffer.editor_size.rows - 2, // * buffer.editor_top_left.column,
-            columns: buffer.editor_size.columns - 2 // - 2 * buffer.editor_top_left.row,
+            rows: buffer.editor_size.rows, // * buffer.editor_top_left.column,
+            columns: buffer.editor_size.columns // - 2 * buffer.editor_top_left.row,
         };
 
         // TODO: in case of selection mode render selection
@@ -1584,6 +1601,7 @@ impl Render for FileBuffer {
                         current_location,
                         view_location,
                         selected_style,
+                        buffer.editor_top_left,
                         size
                     );
 
@@ -1603,6 +1621,7 @@ impl Render for FileBuffer {
                                 tab_location,
                                 view_location,
                                 tab_style.clone(),
+                                buffer.editor_top_left,
                                 size
                             );
                         }
@@ -1613,6 +1632,7 @@ impl Render for FileBuffer {
                         current_location,
                         view_location,
                         selected_style,
+                        buffer.editor_top_left,
                         size
                     );
                 }
@@ -1648,6 +1668,7 @@ impl Render for FileBuffer {
                         tab_location,
                         view_location,
                         tab_style.clone(),
+                        buffer.editor_top_left,
                         size
                     );
                 }
@@ -1665,6 +1686,7 @@ impl Render for FileBuffer {
                     current_location,
                     view_location,
                     style,
+                    buffer.editor_top_left,
                     size
                 );
                 current_location = Location::new(current_location.row, current_location.column + 1);
@@ -1684,6 +1706,7 @@ impl Render for FileBuffer {
                     index_location,
                     view_location,
                     INVISIBLE_STYLE,
+                    buffer.editor_top_left,
                     size
                 );
             }
@@ -1787,11 +1810,11 @@ impl Render for HelpOverlay {
         self.render_window(buffer);
 
         let modified_buffer = Buffer {
-            editor_top_left: Location{
+            editor_top_left: Location {
                 row: self.location.row + 1,
                 column: self.location.column + 1
             },
-            editor_size: Size::new(self.size.rows-1, self.size.columns-1),
+            editor_size: Size::new(self.size.rows-2, self.size.columns-2),
             ..*buffer
         };
         self.file_buffer.render(&modified_buffer);
@@ -3493,8 +3516,6 @@ impl Editor {
             panic!("Failed creating an empty buffer.");
         }
 
-        self.window_buffer.clear();
-
         Ok("".to_string())
     }
 
@@ -3849,7 +3870,7 @@ impl Editor {
         }
 
         let width = (self.window_buffer.size.columns / 3) * 2;
-        let height = (self.window_buffer.size.rows / 3) * 2;
+        let height = self.window_buffer.size.rows / 4;
 
         // TODO: set selection state on filebuffer
         let mut overlay = HelpOverlay {
@@ -3900,13 +3921,6 @@ impl Editor {
                 overlay.file_buffer.contents.append(&mut char_vec);
             }
         }
-
-        self.window_buffer.editor_top_left = Location::new(overlay.get_size().rows, 0);
-        // resize editor buffer size
-        self.window_buffer.editor_size = Size::new(
-            self.window_buffer.size.rows,
-            self.window_buffer.size.columns,
-        );
 
         let mut priority = 500;
         if !self.controls.is_empty() {
@@ -4567,11 +4581,11 @@ impl HandleWindowEvent for Editor {
     }
 }
 
-fn is_location_in_buffer(text_location: Location, view_location: Location, size: Size) -> bool {
-    text_location.row >= view_location.row
-        && text_location.column >= view_location.column
-        && text_location.row < view_location.row + size.rows
-        && text_location.column < view_location.column + size.columns
+fn is_location_in_buffer(text_location: Location, view_location: Location, top_left: Location, size: Size) -> bool {
+    text_location.row >= (top_left.row + view_location.row)
+        && text_location.column >= (top_left.column + view_location.column)
+        && text_location.row < (top_left.row + view_location.row + size.rows)
+        && text_location.column < (top_left.column + view_location.column + size.columns)
 }
 
 fn crop_location_with_buffer(text_location: Location, view_location: Location) -> Location {
