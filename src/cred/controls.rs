@@ -599,7 +599,6 @@ impl Buffer {
         size: Size,
     ) {
         if !is_location_in_buffer(text_location, view_location, top_left, size) {
-            log::info!("Location {:?} not in buffer: {:?} of size {:?}", text_location, view_location, size);
             return;
         }
         let cropped_location = crop_location_with_buffer(text_location, view_location);
