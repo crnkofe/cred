@@ -1541,9 +1541,10 @@ impl Render for FileBuffer {
         );
 
         let left_border_column = buffer.editor_top_left.column;
-        let size = Size{
-            rows: buffer.size.rows - 2 * buffer.editor_top_left.column,
-            columns: buffer.size.columns - 2 * buffer.editor_top_left.row,
+        // TODO: Revise rendering of a box in a larger box (should be an intersection)
+        let size = Size {
+            rows: buffer.editor_size.rows - 2, // * buffer.editor_top_left.column,
+            columns: buffer.editor_size.columns - 2 // - 2 * buffer.editor_top_left.row,
         };
 
         // TODO: in case of selection mode render selection
@@ -1671,6 +1672,10 @@ impl Render for FileBuffer {
         }
 
         while current_location.row < view_location.row + buffer.size.rows {
+            if current_location.row >= (buffer.editor_size.rows + view_location.row)  {
+                break;
+            }
+
             for index in 0..buffer.size.columns {
                 let index_location =
                     Location::new(current_location.row, current_location.column + index);
@@ -1756,6 +1761,8 @@ impl HandleSelectEvent for FileBuffer {
 struct HelpOverlay {
     // overlay title
     title: String,
+    // top left origin
+    location: Location,
     // overlay size
     size: Size,
     // display help text
@@ -1780,18 +1787,20 @@ impl Render for HelpOverlay {
         self.render_window(buffer);
 
         let modified_buffer = Buffer {
-            editor_top_left: Location::new(1, 1),
-            editor_size: Size::new(buffer.size.rows-1, buffer.size.columns-1),
+            editor_top_left: Location{
+                row: self.location.row + 1,
+                column: self.location.column + 1
+            },
+            editor_size: Size::new(self.size.rows-1, self.size.columns-1),
             ..*buffer
         };
-
         self.file_buffer.render(&modified_buffer);
     }
 }
 
 impl Window for HelpOverlay {
     fn get_origin(&self) -> Location {
-        Location::new(0, 0)
+        self.location
     }
 
     fn get_size(&self) -> Size {
@@ -2398,7 +2407,6 @@ fn save_file_buffer_callback(item: &MenuItem) -> Option<Event> {
 }
 
 fn save_close_callback(_item: &MenuItem) -> Option<Event> {
-    log::info!("Close save dialog");
     Some(Event {
         window_event: Some(WindowEvent::close(ControlType::YesNoDialog, None)),
         ..Event::new()
@@ -3485,6 +3493,8 @@ impl Editor {
             panic!("Failed creating an empty buffer.");
         }
 
+        self.window_buffer.clear();
+
         Ok("".to_string())
     }
 
@@ -3838,13 +3848,17 @@ impl Editor {
             return;
         }
 
+        let width = (self.window_buffer.size.columns / 3) * 2;
+        let height = (self.window_buffer.size.rows / 3) * 2;
+
         // TODO: set selection state on filebuffer
         let mut overlay = HelpOverlay {
             title: String::from("Help"),
-            size: Size::new(
-                self.window_buffer.size.rows,
-                self.window_buffer.size.columns,
+            location: Location::new(
+                (self.window_buffer.size.rows - height) / 2,
+                (self.window_buffer.size.columns - width) / 2
             ),
+            size: Size::new(height, width),
             file_buffer: FileBuffer::new(
                 Uuid::new_v4(),
                 self.syntax_highlight.find_syntax(PathBuf::new()),
