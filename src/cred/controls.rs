@@ -48,7 +48,8 @@ use super::common::{
 use super::events::{
     CreateFileEvent, Event, ExitEvent, HandleEvent, HandleKey, HandleSearchEvent,
     HandleSelectEvent, HandleUndoEvent, HandleWindowEvent, OpenFileEvent, SearchDirection,
-    SearchEvent, SelectAction, SelectEvent, UndoEvent, WindowAction, WindowEvent,
+    SearchEvent, SelectAction, SelectEvent, UndoEvent, WindowAction, WindowEvent, DialogType,
+    GotoLineEvent, HandleGotoEvent 
 };
 use super::syntax::*;
 
@@ -87,6 +88,7 @@ const HELP_SHORTCUT: Key = Key::F(1);
 const CTRL_MENU_SHORTCUT: char = 'd';
 const CTRL_COPY_SHORTCUT: char = 'c';
 const CTRL_PASTE_SHORTCUT: char = 'v';
+// const CTRL_GOTO_SHORTCUT: char = 'g';
 // TODO: detect keyboard layout and swap
 const CTRL_UNDO_REDO_SHORTCUT: char = 'z';
 
@@ -1017,6 +1019,7 @@ impl FileBuffer {
     }
 
     fn handle_key_normal(&mut self, ekey: ExtendedKey, window_buffer: Buffer) -> Event {
+        log::info!("GOTO {:?}", ekey);
         if ekey.modifiers.ctrl {
             if let Key::Char(input_control) = ekey.key {
                 match input_control {
@@ -1168,6 +1171,20 @@ impl FileBuffer {
                     self.action_do(Action::insert(self.text_location, input_char.to_string()));
                 }
                 _ => {}
+            }
+
+            // TODO: should be g key - but ctrl+g isn't detected
+            if Key::Unknown(7) == ekey.key {
+                log::info!("Event, open dialog");
+                return Event {
+                    window_event: Some(
+                        WindowEvent::open_dialog(
+                            ControlType::InputDialog,
+                            DialogType::Goto
+                        )
+                    ),
+                    ..Event::new()
+                }
             }
         }
 
@@ -1736,6 +1753,18 @@ impl HandleSearchEvent for FileBuffer {
                 }
             }
             self.set_match_index(new_match, window_buffer);
+        }
+        Event::new()
+    }
+}
+
+impl HandleGotoEvent for FileBuffer {
+    fn handle_goto_event(&mut self, goto_event: GotoLineEvent, window_buffer: Buffer) -> Event {
+        let line_index = goto_event.line;
+        if let Some(text_location) = self.lines.location(line_index) {
+            self.text_location = text_location;
+            self.align_buffer_vertical_up(&window_buffer);
+            self.align_buffer_vertical_down(&window_buffer, false);
         }
         Event::new()
     }
@@ -2324,8 +2353,7 @@ fn open_callback(_item: &MenuItem) -> Option<Event> {
 
 fn open_buffer_callback(_item: &MenuItem) -> Option<Event> {
     // TODO: open buffers
-    Some(Event {
-        window_event: Some(WindowEvent::open(ControlType::FileBuffer)),
+    Some(Event { window_event: Some(WindowEvent::open(ControlType::FileBuffer)),
         ..Event::new()
     })
 }
@@ -2339,7 +2367,19 @@ fn save_callback(_item: &MenuItem) -> Option<Event> {
 
 fn save_as_callback(_item: &MenuItem) -> Option<Event> {
     Some(Event {
-        window_event: Some(WindowEvent::open(ControlType::InputDialog)),
+        window_event: Some(
+            WindowEvent::open_dialog(
+                ControlType::InputDialog,
+                DialogType::Save
+            )
+        ),
+        ..Event::new()
+    })
+}
+
+fn goto_line_callback(_item: &MenuItem) -> Option<Event> {
+    Some(Event {
+        window_event: Some(WindowEvent::close(ControlType::InputDialog, None)),
         ..Event::new()
     })
 }
@@ -2729,6 +2769,8 @@ struct InputDialog {
     menu_items: LinkedList<MenuItem>,
     selected_index: usize,
 
+    dialog_type: DialogType,
+
     // window fields
     title: String,
     origin: Location,
@@ -2826,17 +2868,26 @@ impl HandleKey for InputDialog {
                 };
             }
             Key::Enter => {
+                let gotoline_event = if self.dialog_type == DialogType::Goto {
+                    Some(GotoLineEvent{ line: self.input.parse().unwrap() })
+                } else {
+                    None
+                };
+
                 if let Some(selected_item) = self.menu_items.iter_mut().nth(self.selected_index) {
                     selected_item.file_path = self.input.clone();
                     if (selected_item.callback)(selected_item).is_some() {
                         return Event {
                             window_event: Some(WindowEvent::close(ControlType::InputDialog, None)),
+                            gotoline_event,
                             ..Event::new()
                         };
                     }
                 }
+
                 return Event {
                     window_event: Some(WindowEvent::close(ControlType::InputDialog, None)),
+                    gotoline_event,
                     ..Event::new()
                 };
             }
@@ -3628,6 +3679,75 @@ impl Editor {
             .retain(|c| c.control_type != ControlType::YesNoDialog);
     }
 
+    fn open_goto_dialog(&mut self) {
+        if self.is_displayed_on_top(ControlType::InputDialog) {
+            return;
+        }
+
+        let mut menu_items: LinkedList<MenuItem> = LinkedList::new();
+        let active_file_buffer_option = self
+            .file_buffer_controls
+            .get_mut(&self.active_file_buffer.unwrap());
+        match active_file_buffer_option {
+            Some(active_file_buffer) => {
+                let mut callback_item = MenuItem::new(
+                    String::from("Goto Line"),
+                    None,
+                    true,
+                    goto_line_callback,
+                );
+                callback_item.file_path = active_file_buffer.file_path.clone();
+                // this duplicates the entire file which seems wastefull but on the other hand
+                // Rust is a pass-by-value so why not
+                callback_item.contents = active_file_buffer.contents.to_vec();
+
+                menu_items.push_back(callback_item);
+                menu_items.push_back(MenuItem::new(
+                    String::from("Cancel"),
+                    None,
+                    false,
+                    save_as_close_callback,
+                ));
+
+                let menu_size = Size::new(8, 60);
+                let center = Location {
+                    row: self.window_buffer.size.rows / 2,
+                    column: self.window_buffer.size.columns / 2,
+                };
+                let top_left = Location {
+                    row: center.row - menu_size.rows / 2,
+                    column: center.column - menu_size.columns / 2,
+                };
+
+                let goto_dialog = InputDialog {
+                    text: String::from("Goto line:"),
+                    input: "".to_string(),
+                    input_location: 0,
+                    menu_items,
+                    selected_index: 0,
+                    dialog_type: DialogType::Goto,
+                    title: String::from("Goto line"),
+                    origin: top_left,
+                    size: menu_size,
+                };
+                // when user is on editor and presses escape show top level menu
+                let new_control_reference = ControlReference {
+                    uuid: Uuid::new_v4(),
+                    priority: 500,
+                    control_type: ControlType::InputDialog,
+                };
+                self.save_as_dialog_controls
+                    .insert(new_control_reference.uuid, goto_dialog);
+                self.controls.push(new_control_reference);
+                self.controls
+                    .sort_unstable_by(|c1, c2| c1.priority.partial_cmp(&c2.priority).unwrap());
+            }
+            None => {
+                log::error!("Can't open goto dialog");
+            }
+        }
+    }
+
     fn open_save_as_dialog(&mut self) {
         if self.is_displayed_on_top(ControlType::InputDialog) {
             return;
@@ -3674,6 +3794,7 @@ impl Editor {
                     input_location: active_file_buffer.file_path.len(),
                     menu_items,
                     selected_index: 0,
+                    dialog_type: DialogType::Save,
                     title: String::from("Save Dialog"),
                     origin: top_left,
                     size: menu_size,
@@ -4379,6 +4500,16 @@ impl Editor {
                 }
             }
         }
+
+        if let Some(goto_event) = event.gotoline_event {
+            if let Some(file_buffer) = self
+                .file_buffer_controls
+                .get_mut(&self.active_file_buffer.unwrap())
+            {
+                file_buffer.handle_goto_event(goto_event, self.window_buffer);
+            }
+        }
+
         event.exit_event.is_none()
     }
 
@@ -4519,7 +4650,18 @@ impl HandleWindowEvent for Editor {
                 self.open_save_dialog();
             }
             ControlType::InputDialog => {
-                self.open_save_as_dialog();
+                if let Some(dialog_type) = window_event.dialog_type {
+                    match dialog_type {
+                        DialogType::Save => {
+                            self.open_save_as_dialog();
+                        }
+                        DialogType::Goto => {
+                            self.open_goto_dialog();
+                        }
+                    }
+                } else {
+                    panic!("Unknown dialog type");
+                }
             }
             ControlType::UndoRedoOverlay => {
                 self.open_undo_redo();

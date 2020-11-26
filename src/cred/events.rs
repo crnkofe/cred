@@ -37,10 +37,17 @@ pub enum WindowAction {
     Close,
 }
 
+#[derive(Clone, Debug, PartialEq)]
+pub enum DialogType {
+    Save,
+    Goto
+}
+
 #[derive(Clone, Debug)]
 pub struct WindowEvent {
     pub action: WindowAction,
     pub control_type: ControlType,
+    pub dialog_type: Option<DialogType>,
     pub control_id: Option<Uuid>,
 }
 
@@ -49,6 +56,16 @@ impl WindowEvent {
         Self {
             action: WindowAction::Open,
             control_type,
+            dialog_type: None,
+            control_id: None,
+        }
+    }
+
+    pub fn open_dialog(control_type: ControlType, dialog_type: DialogType) -> Self {
+        Self {
+            action: WindowAction::Open,
+            control_type,
+            dialog_type: Some(dialog_type),
             control_id: None,
         }
     }
@@ -57,6 +74,7 @@ impl WindowEvent {
         Self {
             action: WindowAction::Close,
             control_type,
+            dialog_type: None,
             control_id,
         }
     }
@@ -110,6 +128,11 @@ pub struct OpenFileEvent {
 }
 
 #[derive(Clone, Debug)]
+pub struct GotoLineEvent {
+    pub line: usize,
+}
+
+#[derive(Clone, Debug)]
 pub struct Event {
     pub handled: bool,
     pub bubble_down: bool,
@@ -122,6 +145,7 @@ pub struct Event {
     pub search_event: Option<SearchEvent>,
     pub window_event: Option<WindowEvent>,
     pub exit_event: Option<ExitEvent>,
+    pub gotoline_event: Option<GotoLineEvent>,
 }
 
 impl Event {
@@ -138,6 +162,7 @@ impl Event {
             search_event: None,
             window_event: None,
             exit_event: None,
+            gotoline_event: None,
         }
     }
 
@@ -154,6 +179,7 @@ impl Event {
             search_event: None,
             window_event: None,
             exit_event: None,
+            gotoline_event: None,
         }
     }
 }
@@ -178,6 +204,12 @@ pub trait HandleEvent {
 
 pub trait HandleSearchEvent {
     fn handle_search_event(&mut self, _search_event: SearchEvent, _window_buffer: Buffer) -> Event {
+        Event::new()
+    }
+}
+
+pub trait HandleGotoEvent {
+    fn handle_goto_event(&mut self, _goto_event: GotoLineEvent, _window_buffer: Buffer) -> Event {
         Event::new()
     }
 }
