@@ -632,6 +632,9 @@ impl Buffer {
 #[derive(Clone, Debug)]
 pub struct FileBuffer {
     buffer_id: Uuid,
+    // currently this only hides cursor
+    // TODO: prevent editing in file buffer
+    read_only: bool,
 
     // syntax highlighting
     syntax: Syntax,
@@ -677,6 +680,7 @@ impl FileBuffer {
         Self {
             buffer_id,
             syntax,
+            read_only: false,
             file_path: "".to_owned(),
             lines: LineIndex::new(),
             coverage: None,
@@ -1019,7 +1023,6 @@ impl FileBuffer {
     }
 
     fn handle_key_normal(&mut self, ekey: ExtendedKey, window_buffer: Buffer) -> Event {
-        log::info!("GOTO {:?}", ekey);
         if ekey.modifiers.ctrl {
             if let Key::Char(input_control) = ekey.key {
                 match input_control {
@@ -1608,7 +1611,9 @@ impl Render for FileBuffer {
 
             let char_selected = self.is_selected(index);
             if self.text_location == index {
-                let selected_style = if char_selected {
+                let selected_style = if self.read_only {
+                    NORMAL_STYLE  
+                } else if char_selected {
                     style.select_pointer()
                 } else {
                     style.invert()
@@ -3998,10 +4003,13 @@ impl Editor {
                 (self.window_buffer.size.columns - width) / 2,
             ),
             size: Size::new(height, width),
-            file_buffer: FileBuffer::new(
-                Uuid::new_v4(),
-                self.syntax_highlight.find_syntax(PathBuf::new()),
-            ),
+            file_buffer: FileBuffer {
+                read_only: true,
+                ..FileBuffer::new(
+                    Uuid::new_v4(),
+                    self.syntax_highlight.find_syntax(PathBuf::new()),
+                )
+            }
         };
 
         if let Some(control_reference) = self.controls.last() {
