@@ -3743,8 +3743,8 @@ impl Editor {
                     column: self.window_buffer.size.columns / 2,
                 };
                 let top_left = Location {
-                    row: center.row - menu_size.rows / 2,
-                    column: center.column - menu_size.columns / 2,
+                    row: center.row.saturating_sub(menu_size.rows / 2),
+                    column: center.column.saturating_sub(menu_size.columns / 2),
                 };
 
                 let validator_regex = Regex::new(r"^[0-9]*$");
