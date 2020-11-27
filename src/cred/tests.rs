@@ -419,4 +419,62 @@ mod tests {
         let slice = file_buffer.get_slice_string(0, 50);
         assert_eq!(expected_result + "\n", slice);
     }
+
+    #[test]
+    fn test_editor_goto() {
+        assert_eq!(true, setup().is_ok());
+        let mut editor = Editor::new();
+        assert_eq!(true, editor.init(OutputMode::NoOutput).is_ok());
+
+        let hide_help =
+            Event::KeyEvent(ExtendedKey::new(Key::Esc, Modifiers { ..Modifiers::new() }));
+        assert_eq!(true, editor.handle_event_option(Some(Ok(hide_help))));
+
+        for _ in 0..100 {
+            let event = Event::KeyEvent(ExtendedKey::new(Key::Enter, Modifiers::new()));
+            assert_eq!(true, editor.handle_event_option(Some(Ok(event))));
+        }
+
+        if let Some(file_buffer) = editor.get_active_file_buffer() {
+            let text_location = file_buffer.get_text_location();
+            assert_eq!(100, text_location);
+        }
+
+        /*
+        // TODO: Fix ctrl+g key detection
+        let goto_dialog = Event::KeyEvent(ExtendedKey::new(
+            Key::Char('g'),
+            Modifiers {
+                ctrl: true,
+                ..Modifiers::new()
+            },
+        ));
+        */
+
+        let goto_dialog = Event::KeyEvent(ExtendedKey::new(
+            Key::Unknown(7),
+            Modifiers::new()
+        ));
+        assert_eq!(true, editor.handle_event_option(Some(Ok(goto_dialog))));
+
+        let key_0 = Event::KeyEvent(ExtendedKey::new(Key::Char('1'), Modifiers::new()));
+        let key_1 = Event::KeyEvent(ExtendedKey::new(Key::Char('2'), Modifiers::new()));
+        let ok = Event::KeyEvent(ExtendedKey::new(Key::Enter, Modifiers::new()));
+        assert_eq!(true, editor.handle_event_option(Some(Ok(key_1))));
+        assert_eq!(true, editor.handle_event_option(Some(Ok(ok))));
+
+        if let Some(file_buffer) = editor.get_active_file_buffer() {
+            let text_location = file_buffer.get_text_location();
+            assert_eq!(1, text_location);
+        }
+
+        assert_eq!(true, editor.handle_event_option(Some(Ok(goto_dialog))));
+        assert_eq!(true, editor.handle_event_option(Some(Ok(key_0))));
+        assert_eq!(true, editor.handle_event_option(Some(Ok(ok))));
+
+        if let Some(file_buffer) = editor.get_active_file_buffer() {
+            let text_location = file_buffer.get_text_location();
+            assert_eq!(0, text_location);
+        }
+    }
 }

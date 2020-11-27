@@ -35,6 +35,7 @@ use std::path::Path;
 use std::path::PathBuf;
 use unicode_segmentation::UnicodeSegmentation;
 use uuid::Uuid;
+use regex::Regex;
 
 use std::time::{Duration, Instant};
 
@@ -734,6 +735,10 @@ impl FileBuffer {
         self.contents.remove(self.text_location);
     }
 
+    pub fn get_text_location(&self) -> usize {
+        return self.text_location;
+    }
+
     fn up(&mut self) {
         let mut new_location = self.text_location;
         if new_location == 0 {
@@ -1178,7 +1183,6 @@ impl FileBuffer {
 
             // TODO: should be g key - but ctrl+g isn't detected
             if Key::Unknown(7) == ekey.key {
-                log::info!("Event, open dialog");
                 return Event {
                     window_event: Some(
                         WindowEvent::open_dialog(
@@ -1765,7 +1769,11 @@ impl HandleSearchEvent for FileBuffer {
 
 impl HandleGotoEvent for FileBuffer {
     fn handle_goto_event(&mut self, goto_event: GotoLineEvent, window_buffer: Buffer) -> Event {
-        let line_index = goto_event.line;
+        let line_index = if goto_event.line >= 1 {
+            goto_event.line - 1 
+        } else {
+            0
+        };
         if let Some(text_location) = self.lines.location(line_index) {
             self.text_location = text_location;
             self.align_buffer_vertical_up(&window_buffer);
@@ -2771,9 +2779,10 @@ struct InputDialog {
     text: String,
     input: String,
     input_location: usize,
+    input_validation_regex: Regex,
+
     menu_items: LinkedList<MenuItem>,
     selected_index: usize,
-
     dialog_type: DialogType,
 
     // window fields
@@ -2840,10 +2849,19 @@ impl HandleKey for InputDialog {
     fn handle_key(&mut self, ekey: ExtendedKey, _window_buffer: Buffer) -> Event {
         match ekey.key {
             Key::Tab => {
+                let mut modified_input: String = String::from(self.input.clone());
                 for _ in 0..4 {
-                    self.input.push(SPACE);
+                    modified_input.push(SPACE);
                 }
-                self.input_location += 4;
+
+                if !self.input_validation_regex.is_match(&modified_input) {
+                    return Event::new();
+                } else {
+                    for _ in 0..4 {
+                        self.input.push(SPACE);
+                    }
+                    self.input_location += 4;
+                }
             }
             Key::Home => {
                 self.input_location = 0;
@@ -2852,8 +2870,14 @@ impl HandleKey for InputDialog {
                 self.input_location = self.input.len();
             }
             Key::Char(c) => {
-                self.input.insert(self.input_location, c);
-                self.input_location += 1;
+                let mut modified_input: String = String::from(self.input.clone());
+                modified_input.insert(self.input_location, c);
+                if !self.input_validation_regex.is_match(&modified_input) {
+                    return Event::new();
+                } else {
+                    self.input.insert(self.input_location, c);
+                    self.input_location += 1;
+                }
             }
             Key::Backspace => {
                 if self.input_location > 0 && !self.input.is_empty() {
@@ -2873,11 +2897,18 @@ impl HandleKey for InputDialog {
                 };
             }
             Key::Enter => {
-                let gotoline_event = if self.dialog_type == DialogType::Goto {
-                    Some(GotoLineEvent{ line: self.input.parse().unwrap() })
-                } else {
-                    None
-                };
+                let mut gotoline_event = None;
+                if self.dialog_type == DialogType::Goto && self.input != "" {
+                    match self.input.parse() {
+                        Ok(result) => { 
+                            gotoline_event = Some(GotoLineEvent{ line: result})
+                        }
+                        Err(e) => {
+                            // this can happen due to overflows
+                            log::warn!("Failed parsing input: {:?}", e);
+                        }
+                    }
+                }
 
                 if let Some(selected_item) = self.menu_items.iter_mut().nth(self.selected_index) {
                     selected_item.file_path = self.input.clone();
@@ -3724,9 +3755,15 @@ impl Editor {
                     column: center.column - menu_size.columns / 2,
                 };
 
+                let validator_regex = Regex::new(r"^[0-9]*$");
+                if validator_regex.is_err() {
+                    panic!("Failed compiling regex: {:?}", validator_regex);
+                }
+
                 let goto_dialog = InputDialog {
                     text: String::from("Goto line:"),
                     input: "".to_string(),
+                    input_validation_regex: validator_regex.unwrap(),
                     input_location: 0,
                     menu_items,
                     selected_index: 0,
@@ -3793,9 +3830,15 @@ impl Editor {
                     column: center.column - menu_size.columns / 2,
                 };
 
+                let validator_regex = Regex::new(r".*");
+                if validator_regex.is_err() {
+                    panic!("Failed compiling regex: {:?}", validator_regex);
+                }
+
                 let save_dialog = InputDialog {
                     text: String::from("Save file As?"),
                     input: active_file_buffer.file_path.clone(),
+                    input_validation_regex: validator_regex.unwrap(),
                     input_location: active_file_buffer.file_path.len(),
                     menu_items,
                     selected_index: 0,
