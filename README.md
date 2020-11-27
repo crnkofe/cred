@@ -57,8 +57,6 @@ Assorted ideas for future releases:
 * figure out a better event system
 * test thouroughly for random bugs
 * add replace to search
-* implement goto line
-* delete sections of text
 * allow shortcut configuration
 * add support for themes
 * complete existing syntax highlighters and add support for more
