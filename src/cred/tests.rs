@@ -451,10 +451,7 @@ mod tests {
         ));
         */
 
-        let goto_dialog = Event::KeyEvent(ExtendedKey::new(
-            Key::Unknown(7),
-            Modifiers::new()
-        ));
+        let goto_dialog = Event::KeyEvent(ExtendedKey::new(Key::Unknown(7), Modifiers::new()));
         assert_eq!(true, editor.handle_event_option(Some(Ok(goto_dialog))));
 
         let key_0 = Event::KeyEvent(ExtendedKey::new(Key::Char('1'), Modifiers::new()));

@@ -40,7 +40,7 @@ pub enum WindowAction {
 #[derive(Clone, Debug, PartialEq)]
 pub enum DialogType {
     Save,
-    Goto
+    Goto,
 }
 
 #[derive(Clone, Debug)]

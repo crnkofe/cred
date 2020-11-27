@@ -1,3 +1,4 @@
+use regex::Regex;
 /**
  * MIT License
  *
@@ -35,7 +36,6 @@ use std::path::Path;
 use std::path::PathBuf;
 use unicode_segmentation::UnicodeSegmentation;
 use uuid::Uuid;
-use regex::Regex;
 
 use std::time::{Duration, Instant};
 
@@ -47,10 +47,10 @@ use super::common::{
     INVISIBLE_STYLE, NORMAL_STYLE,
 };
 use super::events::{
-    CreateFileEvent, Event, ExitEvent, HandleEvent, HandleKey, HandleSearchEvent,
-    HandleSelectEvent, HandleUndoEvent, HandleWindowEvent, OpenFileEvent, SearchDirection,
-    SearchEvent, SelectAction, SelectEvent, UndoEvent, WindowAction, WindowEvent, DialogType,
-    GotoLineEvent, HandleGotoEvent 
+    CreateFileEvent, DialogType, Event, ExitEvent, GotoLineEvent, HandleEvent, HandleGotoEvent,
+    HandleKey, HandleSearchEvent, HandleSelectEvent, HandleUndoEvent, HandleWindowEvent,
+    OpenFileEvent, SearchDirection, SearchEvent, SelectAction, SelectEvent, UndoEvent,
+    WindowAction, WindowEvent,
 };
 use super::syntax::*;
 
@@ -735,8 +735,9 @@ impl FileBuffer {
         self.contents.remove(self.text_location);
     }
 
+    #[allow(dead_code)]
     pub fn get_text_location(&self) -> usize {
-        return self.text_location;
+        self.text_location
     }
 
     fn up(&mut self) {
@@ -1184,14 +1185,12 @@ impl FileBuffer {
             // TODO: should be g key - but ctrl+g isn't detected
             if Key::Unknown(7) == ekey.key {
                 return Event {
-                    window_event: Some(
-                        WindowEvent::open_dialog(
-                            ControlType::InputDialog,
-                            DialogType::Goto
-                        )
-                    ),
+                    window_event: Some(WindowEvent::open_dialog(
+                        ControlType::InputDialog,
+                        DialogType::Goto,
+                    )),
                     ..Event::new()
-                }
+                };
             }
         }
 
@@ -1616,7 +1615,7 @@ impl Render for FileBuffer {
             let char_selected = self.is_selected(index);
             if self.text_location == index {
                 let selected_style = if self.read_only {
-                    NORMAL_STYLE  
+                    NORMAL_STYLE
                 } else if char_selected {
                     style.select_pointer()
                 } else {
@@ -1770,7 +1769,7 @@ impl HandleSearchEvent for FileBuffer {
 impl HandleGotoEvent for FileBuffer {
     fn handle_goto_event(&mut self, goto_event: GotoLineEvent, window_buffer: Buffer) -> Event {
         let line_index = if goto_event.line >= 1 {
-            goto_event.line - 1 
+            goto_event.line - 1
         } else {
             0
         };
@@ -2366,7 +2365,8 @@ fn open_callback(_item: &MenuItem) -> Option<Event> {
 
 fn open_buffer_callback(_item: &MenuItem) -> Option<Event> {
     // TODO: open buffers
-    Some(Event { window_event: Some(WindowEvent::open(ControlType::FileBuffer)),
+    Some(Event {
+        window_event: Some(WindowEvent::open(ControlType::FileBuffer)),
         ..Event::new()
     })
 }
@@ -2380,12 +2380,10 @@ fn save_callback(_item: &MenuItem) -> Option<Event> {
 
 fn save_as_callback(_item: &MenuItem) -> Option<Event> {
     Some(Event {
-        window_event: Some(
-            WindowEvent::open_dialog(
-                ControlType::InputDialog,
-                DialogType::Save
-            )
-        ),
+        window_event: Some(WindowEvent::open_dialog(
+            ControlType::InputDialog,
+            DialogType::Save,
+        )),
         ..Event::new()
     })
 }
@@ -2849,7 +2847,7 @@ impl HandleKey for InputDialog {
     fn handle_key(&mut self, ekey: ExtendedKey, _window_buffer: Buffer) -> Event {
         match ekey.key {
             Key::Tab => {
-                let mut modified_input: String = String::from(self.input.clone());
+                let mut modified_input: String = self.input.clone();
                 for _ in 0..4 {
                     modified_input.push(SPACE);
                 }
@@ -2870,7 +2868,7 @@ impl HandleKey for InputDialog {
                 self.input_location = self.input.len();
             }
             Key::Char(c) => {
-                let mut modified_input: String = String::from(self.input.clone());
+                let mut modified_input: String = self.input.clone();
                 modified_input.insert(self.input_location, c);
                 if !self.input_validation_regex.is_match(&modified_input) {
                     return Event::new();
@@ -2900,9 +2898,7 @@ impl HandleKey for InputDialog {
                 let mut gotoline_event = None;
                 if self.dialog_type == DialogType::Goto && self.input != "" {
                     match self.input.parse() {
-                        Ok(result) => { 
-                            gotoline_event = Some(GotoLineEvent{ line: result})
-                        }
+                        Ok(result) => gotoline_event = Some(GotoLineEvent { line: result }),
                         Err(e) => {
                             // this can happen due to overflows
                             log::warn!("Failed parsing input: {:?}", e);
@@ -3726,12 +3722,8 @@ impl Editor {
             .get_mut(&self.active_file_buffer.unwrap());
         match active_file_buffer_option {
             Some(active_file_buffer) => {
-                let mut callback_item = MenuItem::new(
-                    String::from("Goto Line"),
-                    None,
-                    true,
-                    goto_line_callback,
-                );
+                let mut callback_item =
+                    MenuItem::new(String::from("Goto Line"), None, true, goto_line_callback);
                 callback_item.file_path = active_file_buffer.file_path.clone();
                 // this duplicates the entire file which seems wastefull but on the other hand
                 // Rust is a pass-by-value so why not
@@ -4052,7 +4044,7 @@ impl Editor {
                     Uuid::new_v4(),
                     self.syntax_highlight.find_syntax(PathBuf::new()),
                 )
-            }
+            },
         };
 
         if let Some(control_reference) = self.controls.last() {
