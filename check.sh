@@ -7,6 +7,7 @@ then
 	echo "Formatter check succeeded."
 else
 	echo "Formatting check failed"
+	echo "To fix formatting run #cargo fmt --all"
 	sys.exit(1)
 fi
 
