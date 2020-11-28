@@ -191,7 +191,7 @@ pub trait HandleSelectEvent {
 }
 
 pub trait HandleUndoEvent {
-    fn handle_undo_event(&mut self, _undo_event: UndoEvent) -> Event {
+    fn handle_undo_event(&mut self, _undo_event: UndoEvent, _window_buffer: Buffer) -> Event {
         Event::new()
     }
 }

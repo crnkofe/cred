@@ -633,10 +633,13 @@ impl Buffer {
 #[derive(Clone, Debug)]
 pub struct FileBuffer {
     buffer_id: Uuid,
+    // * flag section *
     // currently this only hides cursor
     // TODO: prevent editing in file buffer
     read_only: bool,
-
+    show_line_number: bool,
+    // * end flag section *
+    //
     // syntax highlighting
     syntax: Syntax,
 
@@ -682,6 +685,7 @@ impl FileBuffer {
             buffer_id,
             syntax,
             read_only: false,
+            show_line_number: false,
             file_path: "".to_owned(),
             lines: LineIndex::new(),
             coverage: None,
@@ -741,13 +745,15 @@ impl FileBuffer {
     }
 
     fn up(&mut self) {
+        let now = Instant::now();
+
         let mut new_location = self.text_location;
         if new_location == 0 {
             return;
         }
         let start_of_line = self.find_start_of_line(new_location);
         if start_of_line == 0 {
-            self.text_location = 0;
+            // on first line ignore up movement
             return;
         }
         let start_of_previous_line = self.find_start_of_line(start_of_line - 1);
@@ -755,11 +761,14 @@ impl FileBuffer {
         self.text_location = new_location;
 
         self.move_on_line_right(self.editing_offset);
+        log::info!("[Performance] Move up: {:?}", Instant::now().duration_since(now));
     }
 
     fn down(&mut self) {
+        let now = Instant::now();
         self.text_location = self.find_next_line();
         self.move_on_line_right(self.editing_offset);
+        log::info!("[Performance] Move up: {:?}", Instant::now().duration_since(now));
     }
 
     fn find_start_of_line(&self, text_location: usize) -> usize {
@@ -967,23 +976,25 @@ impl FileBuffer {
         }
     }
 
-    // TODO: This can take quite a while
     fn find_start_of_render(&self, view_location: Location) -> usize {
         match self.lines.location(view_location.row) {
-            Some(location) => location,
+            Some(location) => location + cmp::min(
+                self.lines.line_length(view_location.row).unwrap_or(usize::MAX).saturating_sub(1),
+                view_location.column
+                ),
             None => 0,
         }
     }
 
-    fn redo(&mut self) {
+    fn redo(&mut self, window_buffer: Buffer) {
         if self.active_action < self.action_history.len() {
-            self.action_redo(self.active_action);
+            self.action_redo(self.active_action, window_buffer);
         }
     }
 
-    fn undo(&mut self) {
+    fn undo(&mut self, window_buffer: Buffer) {
         if self.active_action > 0 {
-            self.action_undo(self.active_action - 1);
+            self.action_undo(self.active_action - 1, window_buffer);
             self.active_action -= 1;
         }
     }
@@ -1093,8 +1104,9 @@ impl FileBuffer {
                 Key::Backspace => {
                     if self.text_location > 0 {
                         let content = self.contents[self.text_location - 1].to_string();
-                        self.action_do(Action::remove(self.text_location - 1, content, 1));
+                        self.action_do(Action::remove(self.text_location - 1, content, 1));                        
                         self.align_buffer_vertical_up(&window_buffer);
+                        self.align_buffer_horizontal(&window_buffer);
                     }
                 }
                 Key::Delete => {
@@ -1168,6 +1180,7 @@ impl FileBuffer {
                     for _ in 0..whitespace_count {
                         self.action_do(Action::insert(self.text_location, SPACE.to_string()));
                     }
+                    self.align_buffer_horizontal(&window_buffer);
                     self.align_buffer_vertical_down(&window_buffer, false);
                 }
                 HELP_SHORTCUT => {
@@ -1480,7 +1493,7 @@ impl FileBuffer {
         }
     }
 
-    fn action_redo(&mut self, action_index: usize) {
+    fn action_redo(&mut self, action_index: usize, window_buffer: Buffer) {
         if action_index >= self.action_history.len() {
             return;
         }
@@ -1492,9 +1505,13 @@ impl FileBuffer {
                 self.active_action += 1;
             }
         }
+
+        self.align_buffer_horizontal(&window_buffer);
+        self.align_buffer_vertical_up(&window_buffer);
+        self.align_buffer_vertical_down(&window_buffer, false);
     }
 
-    fn action_undo(&mut self, action_index: usize) {
+    fn action_undo(&mut self, action_index: usize, window_buffer: Buffer) {
         let action_option = self.get_action_at(action_index);
         match action_option {
             Some(action) => {
@@ -1505,6 +1522,8 @@ impl FileBuffer {
                         for _ in 0..action.len {
                             self.remove_from_buffer();
                         }
+                        self.align_buffer_horizontal(&window_buffer);
+                        self.align_buffer_vertical_up(&window_buffer);
                     }
                     ActionType::Remove => {
                         self.text_location = action.start_location;
@@ -1512,6 +1531,8 @@ impl FileBuffer {
                         for c in action.content.chars() {
                             self.write_to_buffer(c);
                         }
+                        self.align_buffer_horizontal(&window_buffer);
+                        self.align_buffer_vertical_down(&window_buffer, false);
                     }
                 }
             }
@@ -1519,6 +1540,7 @@ impl FileBuffer {
                 log::info!("Nonexistent action index.");
             }
         }
+
     }
 
     #[allow(dead_code)]
@@ -1560,6 +1582,7 @@ impl HandleKey for FileBuffer {
 
 impl Render for FileBuffer {
     fn render(&self, buffer: &Buffer) {
+        let now = Instant::now();
         const SYNTAX_LOOKBACK: usize = 2048;
 
         let mut current_location: Location = Location::new(
@@ -1581,163 +1604,178 @@ impl Render for FileBuffer {
             &(self.get_slice_string(start_of_syntax_highlight, end_of_syntax_highlight)),
         );
 
+        // numbers larger than this value will be %mod-ed
+        let NUMBER_OFFSET = 1e5;
+
         let left_border_column = buffer.editor_top_left.column;
         // TODO: Revise rendering of a box in a larger box (should be an intersection)
         let size = Size {
-            rows: buffer.editor_size.rows,       // * buffer.editor_top_left.column,
-            columns: buffer.editor_size.columns, // - 2 * buffer.editor_top_left.row,
+            rows: buffer.editor_size.rows,
+            columns: buffer.editor_size.columns,
         };
 
-        // TODO: in case of selection mode render selection
-        for index in start_of_render..self.contents.len() {
-            // stop rendering if row is out of buffer bounds
-            if current_location.row > (view_location.row + buffer.size.rows) {
-                break;
-            }
+        let start_column = view_location.column;
+        let end_column = view_location.column + size.columns;
 
-            // iterate until hitting end of buffer or newline
-            let current_character: char = self.contents[index];
-
-            let mut current_character_str: String = String::from("");
-            current_character_str.push(current_character);
-
-            let syntax_style: Option<&SyntaxMatch> = highlights.iter().find(|x| {
-                index >= (start_of_syntax_highlight + x.start)
-                    && index < (start_of_syntax_highlight + x.end)
-            });
-
-            let style = if let Some(actual_style) = syntax_style {
-                actual_style.style.clone()
-            } else {
-                NORMAL_STYLE
-            };
-
-            let char_selected = self.is_selected(index);
-            if self.text_location == index {
-                let selected_style = if self.read_only {
-                    NORMAL_STYLE
-                } else if char_selected {
-                    style.select_pointer()
-                } else {
-                    style.invert()
-                };
-                if current_character == TAB || current_character == NEWLINE {
-                    buffer.write(
-                        &SPACE_STRING,
-                        current_location,
-                        view_location,
-                        selected_style,
-                        buffer.editor_top_left,
-                        size,
-                    );
-
-                    if current_character == TAB {
-                        let tab_style = if char_selected {
-                            style.invert()
-                        } else {
-                            style.clone()
-                        };
-                        for tab_index in 1..TAB_CHARS_COUNT {
-                            let tab_location = Location::new(
-                                current_location.row,
-                                current_location.column + tab_index,
-                            );
-                            buffer.write(
-                                &String::from(SPACE_STRING),
-                                tab_location,
-                                view_location,
-                                tab_style.clone(),
-                                buffer.editor_top_left,
-                                size,
-                            );
-                        }
-                    }
-                } else {
-                    buffer.write(
-                        &current_character_str,
-                        current_location,
-                        view_location,
-                        selected_style,
-                        buffer.editor_top_left,
-                        size,
-                    );
+        while current_location.row < view_location.row + buffer.size.rows {
+            let start_of_current_row = self.find_start_of_render(current_location);
+            let mut anything_rendered = true;
+            for index in start_of_current_row..start_of_current_row + size.columns {
+                if index >= self.contents.len() {
+                    anything_rendered = false;
+                    break;
                 }
 
-                if current_character == TAB {
+                // iterate until hitting end of buffer or newline
+                let current_character: char = self.contents[index];
+
+                let mut current_character_str: String = String::from("");
+                current_character_str.push(current_character);
+
+                let syntax_style: Option<&SyntaxMatch> = highlights.iter().find(|x| {
+                    index >= (start_of_syntax_highlight + x.start)
+                        && index < (start_of_syntax_highlight + x.end)
+                });
+
+                let style = if let Some(actual_style) = syntax_style {
+                    actual_style.style.clone()
+                } else {
+                    NORMAL_STYLE
+                };
+
+                let char_selected = self.is_selected(index);
+                if self.text_location == index {
+                    let selected_style = if self.read_only {
+                        NORMAL_STYLE
+                    } else if char_selected {
+                        style.select_pointer()
+                    } else {
+                        style.invert()
+                    };
+                    if current_character == TAB || current_character == NEWLINE {
+                        buffer.write(
+                            &SPACE_STRING,
+                            current_location,
+                            view_location,
+                            selected_style,
+                            buffer.editor_top_left,
+                            size,
+                        );
+
+                        if current_character == TAB {
+                            let tab_style = if char_selected {
+                                style.invert()
+                            } else {
+                                style.clone()
+                            };
+                            for tab_index in 1..TAB_CHARS_COUNT {
+                                let tab_location = Location::new(
+                                    current_location.row,
+                                    current_location.column + tab_index,
+                                );
+                                buffer.write(
+                                    &String::from(SPACE_STRING),
+                                    tab_location,
+                                    view_location,
+                                    tab_style.clone(),
+                                    buffer.editor_top_left,
+                                    size,
+                                );
+                            }
+                        } 
+                    } else {
+                        buffer.write(
+                            &current_character_str,
+                            current_location,
+                            view_location,
+                            selected_style,
+                            buffer.editor_top_left,
+                            size,
+                        );
+                    }
+
+                    if current_character == TAB {
+                        current_location = Location::new(
+                            current_location.row,
+                            current_location.column + TAB_CHARS_COUNT,
+                        );
+                    } else if current_character == NEWLINE {
+                        // cover empty line - otherwise existing written characters may remain there
+                        let next_column = Location {
+                            row: current_location.row,
+                            column: current_location.column + 1,
+                        };
+                        buffer.clear_row(next_column, view_location, size);
+                        current_location = Location::new(current_location.row, current_location.column + 1);
+                        break;
+                    } else {
+                        current_location =
+                            Location::new(current_location.row, current_location.column + 1);
+                    }
+                } else if current_character == TAB {
+                    let tab_style = if char_selected {
+                        style.invert()
+                    } else {
+                        style.clone()
+                    };
+                    for tab_index in 0..TAB_CHARS_COUNT {
+                        let tab_location =
+                            Location::new(current_location.row, current_location.column + tab_index);
+                        buffer.write(
+                            &String::from(SPACE_STRING),
+                            tab_location,
+                            view_location,
+                            tab_style.clone(),
+                            buffer.editor_top_left,
+                            size,
+                        );
+                    }
                     current_location = Location::new(
                         current_location.row,
                         current_location.column + TAB_CHARS_COUNT,
                     );
                 } else if current_character == NEWLINE {
-                    // cover empty line - otherwise existing written characters may remain there
-                    let next_column = Location {
-                        row: current_location.row,
-                        column: current_location.column + 1,
-                    };
-                    buffer.clear_row(next_column, view_location, size);
-                    current_location = Location::new(current_location.row + 1, left_border_column);
+                    buffer.clear_row(current_location, view_location, size);
+                    current_location = Location::new(current_location.row, current_location.column + 1);
+                    break;
                 } else {
-                    current_location =
-                        Location::new(current_location.row, current_location.column + 1);
+                    let style = if char_selected { style.invert() } else { style };
+                    buffer.write(
+                        &current_character_str,
+                        current_location,
+                        view_location,
+                        style,
+                        buffer.editor_top_left,
+                        size,
+                    );
+                    current_location = Location::new(current_location.row, current_location.column + 1);
                 }
-            } else if current_character == TAB {
-                let tab_style = if char_selected {
-                    style.invert()
+            }
+
+            let rendered_chars = current_location.column.saturating_sub(start_column);
+            if !anything_rendered || rendered_chars < size.columns {
+                let start_index = if !anything_rendered {
+                    0
                 } else {
-                    style.clone()
+                    size.columns - rendered_chars
                 };
-                for tab_index in 0..TAB_CHARS_COUNT {
-                    let tab_location =
-                        Location::new(current_location.row, current_location.column + tab_index);
+
+                for start_index in 0..buffer.size.columns {
+                    let index_location =
+                        Location::new(current_location.row, current_location.column + start_index);
                     buffer.write(
                         &String::from(SPACE_STRING),
-                        tab_location,
+                        index_location,
                         view_location,
-                        tab_style.clone(),
+                        INVISIBLE_STYLE,
                         buffer.editor_top_left,
                         size,
                     );
                 }
-                current_location = Location::new(
-                    current_location.row,
-                    current_location.column + TAB_CHARS_COUNT,
-                );
-            } else if current_character == NEWLINE {
-                buffer.clear_row(current_location, view_location, size);
-                current_location = Location::new(current_location.row + 1, left_border_column);
-            } else {
-                let style = if char_selected { style.invert() } else { style };
-                buffer.write(
-                    &current_character_str,
-                    current_location,
-                    view_location,
-                    style,
-                    buffer.editor_top_left,
-                    size,
-                );
-                current_location = Location::new(current_location.row, current_location.column + 1);
             }
+            current_location = Location::new(current_location.row + 1, left_border_column + start_column);
         }
-
-        while current_location.row < view_location.row + buffer.size.rows {
-            if current_location.row >= (buffer.editor_size.rows + view_location.row) {
-                break;
-            }
-
-            for index in 0..buffer.size.columns {
-                let index_location =
-                    Location::new(current_location.row, current_location.column + index);
-                buffer.write(
-                    &String::from(SPACE_STRING),
-                    index_location,
-                    view_location,
-                    INVISIBLE_STYLE,
-                    buffer.editor_top_left,
-                    size,
-                );
-            }
-            current_location = Location::new(current_location.row + 1, left_border_column);
-        }
+        log::info!("[Performance] Render for filebuffer: {:#?}", Instant::now().duration_since(now));
     }
 }
 
@@ -1747,7 +1785,7 @@ impl HandleSearchEvent for FileBuffer {
             self.pattern = search_event.pattern.clone();
             let now = Instant::now();
             self.matches = rabin_karp_search(search_event.pattern, &self.contents, 101);
-            log::info!("Search time: {:?}", Instant::now().duration_since(now));
+            log::info!("[Performance] Search time: {:?}", Instant::now().duration_since(now));
             self.set_match_index(0, window_buffer);
         } else if !self.matches.is_empty() {
             let mut new_match = self.current_match;
@@ -1783,13 +1821,13 @@ impl HandleGotoEvent for FileBuffer {
 }
 
 impl HandleUndoEvent for FileBuffer {
-    fn handle_undo_event(&mut self, undo_event: UndoEvent) -> Event {
+    fn handle_undo_event(&mut self, undo_event: UndoEvent, window_buffer: Buffer) -> Event {
         match undo_event.action {
             UndoRedoAction::Undo => {
-                self.undo();
+                self.undo(window_buffer);
             }
             UndoRedoAction::Redo => {
-                self.redo();
+                self.redo(window_buffer);
             }
         }
         Event::new()
@@ -4493,7 +4531,7 @@ impl Editor {
                 .get_mut(&self.active_file_buffer.unwrap())
             {
                 Some(file_buffer) => {
-                    file_buffer.handle_undo_event(undo_event);
+                    file_buffer.handle_undo_event(undo_event, self.window_buffer);
                 }
                 None => {
                     log::warn!("Searched in empty buffer?");
