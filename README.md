@@ -53,13 +53,18 @@ Github actions also trigger on each push. See .github/workflows/runtest.yml for 
 
 # TODO
 
+Current priority is a focus on making editor more resilient, finding bugs and the ability to better edit itself.
+
 Assorted ideas for future releases:
 * show line numbers
 * allow shortcut configuration
 * handle large files gracefully
+* compile rust source file (Rust)
+* compile Cargo project (Rust)
+* add support for lint (Rust)
+* add support for reformat (Rust)
 * run script (Python)
 * run unit test (Python)
-* compile Cargo project (Rust)
 * run unit test (Rust)
 * Git support
 * figure out a better event system
