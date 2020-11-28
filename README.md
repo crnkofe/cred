@@ -61,6 +61,7 @@ Assorted ideas for future releases:
 * run unit test (Python)
 * compile Cargo project (Rust)
 * run unit test (Rust)
+* Git support
 * figure out a better event system
 * test thouroughly for random bugs
 * add replace to search
