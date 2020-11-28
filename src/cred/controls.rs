@@ -596,7 +596,7 @@ impl Buffer {
         if !is_location_in_buffer(text_location, view_location, top_left, size) {
             return;
         }
-        let cropped_location = crop_location_with_buffer(text_location, view_location);
+        let cropped_location = text_location;
         unsafe {
             if let Some(rust_box) = &EDITOR_BUFFER {
                 rust_box.print(
@@ -1586,8 +1586,8 @@ impl Render for FileBuffer {
         const SYNTAX_LOOKBACK: usize = 2048;
 
         let mut current_location: Location = Location::new(
-            self.view_location.row + buffer.editor_top_left.row,
-            self.view_location.column + buffer.editor_top_left.column,
+            self.view_location.row,  // + buffer.editor_top_left.row,
+            self.view_location.column,  // + buffer.editor_top_left.column,
         );
 
         let view_location = self.view_location;
@@ -1626,6 +1626,11 @@ impl Render for FileBuffer {
                     break;
                 }
 
+                let render_location = Location{
+                    row: current_location.row + buffer.editor_top_left.row,
+                    column: current_location.column + buffer.editor_top_left.column
+                };
+
                 // iterate until hitting end of buffer or newline
                 let current_character: char = self.contents[index];
 
@@ -1655,7 +1660,7 @@ impl Render for FileBuffer {
                     if current_character == TAB || current_character == NEWLINE {
                         buffer.write(
                             &SPACE_STRING,
-                            current_location,
+                            render_location,
                             view_location,
                             selected_style,
                             buffer.editor_top_left,
@@ -1670,8 +1675,8 @@ impl Render for FileBuffer {
                             };
                             for tab_index in 1..TAB_CHARS_COUNT {
                                 let tab_location = Location::new(
-                                    current_location.row,
-                                    current_location.column + tab_index,
+                                    render_location.row,
+                                    render_location.column + tab_index,
                                 );
                                 buffer.write(
                                     &String::from(SPACE_STRING),
@@ -1686,7 +1691,7 @@ impl Render for FileBuffer {
                     } else {
                         buffer.write(
                             &current_character_str,
-                            current_location,
+                            render_location,
                             view_location,
                             selected_style,
                             buffer.editor_top_left,
@@ -1702,8 +1707,8 @@ impl Render for FileBuffer {
                     } else if current_character == NEWLINE {
                         // cover empty line - otherwise existing written characters may remain there
                         let next_column = Location {
-                            row: current_location.row,
-                            column: current_location.column + 1,
+                            row: render_location.row,
+                            column: render_location.column + 1,
                         };
                         buffer.clear_row(next_column, view_location, size);
                         current_location = Location::new(current_location.row, current_location.column + 1);
@@ -1720,7 +1725,7 @@ impl Render for FileBuffer {
                     };
                     for tab_index in 0..TAB_CHARS_COUNT {
                         let tab_location =
-                            Location::new(current_location.row, current_location.column + tab_index);
+                            Location::new(render_location.row, render_location.column + tab_index);
                         buffer.write(
                             &String::from(SPACE_STRING),
                             tab_location,
@@ -1735,14 +1740,14 @@ impl Render for FileBuffer {
                         current_location.column + TAB_CHARS_COUNT,
                     );
                 } else if current_character == NEWLINE {
-                    buffer.clear_row(current_location, view_location, size);
+                    buffer.clear_row(render_location, view_location, size);
                     current_location = Location::new(current_location.row, current_location.column + 1);
                     break;
                 } else {
                     let style = if char_selected { style.invert() } else { style };
                     buffer.write(
                         &current_character_str,
-                        current_location,
+                        render_location,
                         view_location,
                         style,
                         buffer.editor_top_left,
@@ -1762,7 +1767,9 @@ impl Render for FileBuffer {
 
                 for start_index in 0..buffer.size.columns {
                     let index_location =
-                        Location::new(current_location.row, current_location.column + start_index);
+                        Location::new(
+                            current_location.row + buffer.editor_top_left.row,
+                            current_location.column + start_index + buffer.editor_top_left.column);
                     buffer.write(
                         &String::from(SPACE_STRING),
                         index_location,
@@ -1773,7 +1780,7 @@ impl Render for FileBuffer {
                     );
                 }
             }
-            current_location = Location::new(current_location.row + 1, left_border_column + start_column);
+            current_location = Location::new(current_location.row + 1, view_location.column);
         }
         log::info!("[Performance] Render for filebuffer: {:#?}", Instant::now().duration_since(now));
     }
@@ -1883,6 +1890,7 @@ impl HandleKey for HelpOverlay {
 
 impl Render for HelpOverlay {
     fn render(&self, buffer: &Buffer) {
+        log::info!("[render] help overlay");
         self.render_window(buffer);
 
         let modified_buffer = Buffer {
@@ -4066,7 +4074,7 @@ impl Editor {
         }
 
         let width = (self.window_buffer.size.columns / 3) * 2;
-        let height = self.window_buffer.size.rows / 4;
+        let height = self.window_buffer.size.rows / 2;
 
         // TODO: set selection state on filebuffer
         let mut overlay = HelpOverlay {
