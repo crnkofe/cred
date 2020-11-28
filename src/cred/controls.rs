@@ -69,6 +69,9 @@ const SPACE: char = ' ';
 const NEWLINE: char = '\n';
 const TAB: char = '\t';
 
+// for file buffer show line number % NUMBER_MOD
+const NUMBER_MOD: usize = 100000;
+
 // depth to which dirs are loaded
 const LOAD_DIRECTORY_DEPTH: usize = 5;
 
@@ -593,8 +596,8 @@ impl Buffer {
         top_left: Location,
         size: Size,
     ) {
-        if !is_location_in_buffer(text_location, view_location, top_left, size) {
-            return;
+        if !is_render_location_in_buffer(text_location, top_left, size) {
+             return;
         }
         let cropped_location = text_location;
         unsafe {
@@ -1543,6 +1546,23 @@ impl FileBuffer {
 
     }
 
+    fn render_line_number(&self, current_location: Location, view_location: Location, buffer: Buffer, size: Size) {
+        let render_location = Location {
+            row: current_location.row + buffer.editor_top_left.row - view_location.row,
+            column: current_location.column + buffer.editor_top_left.column - view_location.column
+        };
+        
+        buffer.write(
+            &format!("{:05} ", current_location.row % NUMBER_MOD),
+            render_location,
+            view_location,
+            NORMAL_STYLE,
+            buffer.editor_top_left,
+            size,
+        );
+    }
+
+
     #[allow(dead_code)]
     pub fn get_current_match_location(&self) -> Option<usize> {
         if self.pattern == *"" {
@@ -1586,8 +1606,8 @@ impl Render for FileBuffer {
         const SYNTAX_LOOKBACK: usize = 2048;
 
         let mut current_location: Location = Location::new(
-            self.view_location.row,  // + buffer.editor_top_left.row,
-            self.view_location.column,  // + buffer.editor_top_left.column,
+            self.view_location.row,
+            self.view_location.column,
         );
 
         let view_location = self.view_location;
@@ -1604,22 +1624,37 @@ impl Render for FileBuffer {
             &(self.get_slice_string(start_of_syntax_highlight, end_of_syntax_highlight)),
         );
 
-        // numbers larger than this value will be %mod-ed
-        let NUMBER_OFFSET = 1e5;
+        // numbers larger than this value will be %mod-eda
+        let NUMBER_COUNT = 5;
 
         let left_border_column = buffer.editor_top_left.column;
         // TODO: Revise rendering of a box in a larger box (should be an intersection)
         let size = Size {
             rows: buffer.editor_size.rows,
-            columns: buffer.editor_size.columns,
+            columns: if self.show_line_number { 
+                buffer.editor_size.columns
+            } else {
+                buffer.editor_size.columns
+            },
         };
 
         let start_column = view_location.column;
         let end_column = view_location.column + size.columns;
 
+        let number_offset = if self.show_line_number {
+            NUMBER_COUNT+1
+        } else {
+            0
+        };
+
         while current_location.row < view_location.row + buffer.size.rows {
             let start_of_current_row = self.find_start_of_render(current_location);
             let mut anything_rendered = true;
+
+            if self.show_line_number {
+                self.render_line_number(current_location, view_location, *buffer, size);
+            }
+
             for index in start_of_current_row..start_of_current_row + size.columns {
                 if index >= self.contents.len() {
                     anything_rendered = false;
@@ -1627,8 +1662,10 @@ impl Render for FileBuffer {
                 }
 
                 let render_location = Location{
-                    row: current_location.row + buffer.editor_top_left.row,
-                    column: current_location.column + buffer.editor_top_left.column
+                    row: (current_location.row + buffer.editor_top_left.row)
+                        .saturating_sub(view_location.row) ,
+                    column: (current_location.column + buffer.editor_top_left.column + number_offset)
+                        .saturating_sub(view_location.column)
                 };
 
                 // iterate until hitting end of buffer or newline
@@ -1765,14 +1802,27 @@ impl Render for FileBuffer {
                     size.columns - rendered_chars
                 };
 
+                let current_location =
+                    Location::new(
+                        current_location.row + buffer.editor_top_left.row,
+                        current_location.column + start_index + buffer.editor_top_left.column);
+                if self.show_line_number {
+                    self.render_line_number(current_location, view_location, *buffer, size);
+                }
                 for start_index in 0..buffer.size.columns {
-                    let index_location =
+                    let current_location =
                         Location::new(
                             current_location.row + buffer.editor_top_left.row,
                             current_location.column + start_index + buffer.editor_top_left.column);
+
+                    let render_location = Location::new(
+                        current_location.row,
+                        current_location.column + number_offset
+                    );
+
                     buffer.write(
                         &String::from(SPACE_STRING),
-                        index_location,
+                        render_location,
                         view_location,
                         INVISIBLE_STYLE,
                         buffer.editor_top_left,
@@ -1890,7 +1940,6 @@ impl HandleKey for HelpOverlay {
 
 impl Render for HelpOverlay {
     fn render(&self, buffer: &Buffer) {
-        log::info!("[render] help overlay");
         self.render_window(buffer);
 
         let modified_buffer = Buffer {
@@ -4338,6 +4387,7 @@ impl Editor {
         let mut file_buffer = FileBuffer {
             contents: vec!['\n'],
             file_path: pwd_path.to_str().unwrap_or(&"").to_string(),
+            show_line_number: true,
             ..FileBuffer::new(
                 Uuid::new_v4(),
                 self.syntax_highlight.find_syntax(PathBuf::new()),
@@ -4407,6 +4457,7 @@ impl Editor {
 
         let mut file_buffer = FileBuffer {
             contents: Vec::with_capacity(estimated_size as usize),
+            show_line_number: true,
             ..FileBuffer::new(
                 Uuid::new_v4(),
                 self.syntax_highlight.find_syntax(pathbuf.clone()),
@@ -4816,6 +4867,18 @@ impl HandleWindowEvent for Editor {
         }
         Event::new()
     }
+}
+
+
+fn is_render_location_in_buffer(
+    text_location: Location,
+    top_left: Location,
+    size: Size,
+) -> bool {
+    text_location.row >= (top_left.row)
+        && text_location.column >= (top_left.column)
+        && text_location.row < (top_left.row + size.rows)
+        && text_location.column < (top_left.column + size.columns)
 }
 
 fn is_location_in_buffer(
