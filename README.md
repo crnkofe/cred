@@ -54,10 +54,16 @@ Github actions also trigger on each push. See .github/workflows/runtest.yml for 
 # TODO
 
 Assorted ideas for future releases:
+* show line numbers
+* allow shortcut configuration
+* handle large files gracefully
+* run script (Python)
+* run unit test (Python)
+* compile Cargo project (Rust)
+* run unit test (Rust)
 * figure out a better event system
 * test thouroughly for random bugs
 * add replace to search
-* allow shortcut configuration
 * add support for themes
 * complete existing syntax highlighters and add support for more
 * add basic IDE features(compile, run unit tests, show documentation etc.)
