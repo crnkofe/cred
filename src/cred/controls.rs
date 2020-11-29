@@ -1562,7 +1562,7 @@ impl FileBuffer {
         };
         
         buffer.write(
-            &format!("{:05} ", current_location.row % NUMBER_MOD),
+            &format!("{:05} ", (current_location.row+1) % NUMBER_MOD),
             render_location,
             view_location,
             NORMAL_STYLE,
@@ -1880,10 +1880,23 @@ impl HandleGotoEvent for FileBuffer {
         } else {
             0
         };
-        if let Some(text_location) = self.lines.location(line_index) {
-            self.text_location = text_location;
-            self.align_buffer_vertical_up(&window_buffer);
-            self.align_buffer_vertical_down(&window_buffer, false);
+        match self.lines.location(line_index) {
+            Some(text_location) => {
+                self.text_location = text_location;
+                self.align_buffer_vertical_up(&window_buffer);
+                self.align_buffer_vertical_down(&window_buffer, false);
+            }
+            None => {
+                // jump to end of file
+                let count_lines = self.lines.len();
+                if count_lines > 0 {
+                    if let Some(last_line_location) = self.lines.location(count_lines.saturating_sub(1)) {
+                        self.text_location = last_line_location;
+                        self.align_buffer_vertical_up(&window_buffer);
+                        self.align_buffer_vertical_down(&window_buffer, false);
+                    }
+                }
+            }
         }
         Event::new()
     }
