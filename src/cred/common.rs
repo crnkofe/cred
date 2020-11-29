@@ -85,12 +85,6 @@ pub const INVERSE_STYLE: FontStyle = FontStyle {
     background_color: Color::White,
 };
 
-pub const INVISIBLE_STYLE: FontStyle = FontStyle {
-    font_style: rustbox::RB_NORMAL,
-    foreground_color: Color::Black,
-    background_color: Color::Black,
-};
-
 /**
  * Data types
  */

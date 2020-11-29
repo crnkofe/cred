@@ -44,7 +44,7 @@ use std::collections::LinkedList;
 
 use super::common::{
     Buffer, ControlType, Coverage, FontStyle, Location, Size, UndoRedoAction, INVERSE_STYLE,
-    INVISIBLE_STYLE, NORMAL_STYLE,
+    NORMAL_STYLE,
 };
 use super::events::{
     CreateFileEvent, DialogType, Event, ExitEvent, GotoLineEvent, HandleEvent, HandleGotoEvent,
@@ -71,6 +71,8 @@ const TAB: char = '\t';
 
 // for file buffer show line number % NUMBER_MOD
 const NUMBER_MOD: usize = 100000;
+// numbers larger than this value will be %mod-ed
+const NUMBER_COUNT: usize = 5;
 
 // depth to which dirs are loaded
 const LOAD_DIRECTORY_DEPTH: usize = 5;
@@ -557,13 +559,12 @@ impl Buffer {
         }
     }
 
-    fn clear_row(&self, current_location: Location, view_location: Location, size: Size) {
+    fn clear_row(&self, current_location: Location, size: Size) {
         for remaining_column in current_location.column..self.size.columns {
             let remaining_location = Location::new(current_location.row, remaining_column);
             self.write(
                 &String::from(SPACE_STRING),
                 remaining_location,
-                view_location,
                 NORMAL_STYLE,
                 Location::new(0, 0), // TODO
                 size,
@@ -595,13 +596,12 @@ impl Buffer {
         &self,
         string: &str,
         text_location: Location,
-        view_location: Location,
         style: FontStyle,
         top_left: Location,
         size: Size,
     ) {
         if !is_render_location_in_buffer(text_location, top_left, size) {
-             return;
+            return;
         }
         let cropped_location = text_location;
         unsafe {
@@ -768,7 +768,10 @@ impl FileBuffer {
         self.text_location = new_location;
 
         self.move_on_line_right(self.editing_offset);
-        log::info!("[Performance] Move up: {:?}", Instant::now().duration_since(now));
+        log::info!(
+            "[Performance] Move up: {:?}",
+            Instant::now().duration_since(now)
+        );
     }
 
     fn down(&mut self) {
@@ -778,7 +781,10 @@ impl FileBuffer {
         if previous_text_location != self.text_location {
             self.move_on_line_right(self.editing_offset);
         }
-        log::info!("[Performance] Move up: {:?}", Instant::now().duration_since(now));
+        log::info!(
+            "[Performance] Move up: {:?}",
+            Instant::now().duration_since(now)
+        );
     }
 
     fn find_start_of_line(&self, text_location: usize) -> usize {
@@ -988,10 +994,16 @@ impl FileBuffer {
 
     fn find_start_of_render(&self, view_location: Location) -> Option<usize> {
         match self.lines.location(view_location.row) {
-            Some(location) => Some(location + cmp::min(
-                self.lines.line_length(view_location.row).unwrap_or(usize::MAX).saturating_sub(1),
-                view_location.column
-                )),
+            Some(location) => Some(
+                location
+                    + cmp::min(
+                        self.lines
+                            .line_length(view_location.row)
+                            .unwrap_or(usize::MAX)
+                            .saturating_sub(1),
+                        view_location.column,
+                    ),
+            ),
             None => None,
         }
     }
@@ -1115,7 +1127,7 @@ impl FileBuffer {
                 Key::Backspace => {
                     if self.text_location > 0 {
                         let content = self.contents[self.text_location - 1].to_string();
-                        self.action_do(Action::remove(self.text_location - 1, content, 1));                        
+                        self.action_do(Action::remove(self.text_location - 1, content, 1));
                         self.align_buffer_vertical_up(&window_buffer);
                         self.align_buffer_horizontal(&window_buffer);
                     }
@@ -1552,25 +1564,28 @@ impl FileBuffer {
                 log::info!("Nonexistent action index.");
             }
         }
-
     }
 
-    fn render_line_number(&self, current_location: Location, view_location: Location, buffer: Buffer, size: Size) {
+    fn render_line_number(
+        &self,
+        current_location: Location,
+        view_location: Location,
+        buffer: Buffer,
+        size: Size,
+    ) {
         let render_location = Location {
             row: current_location.row + buffer.editor_top_left.row - view_location.row,
-            column: current_location.column + buffer.editor_top_left.column - view_location.column
+            column: current_location.column + buffer.editor_top_left.column - view_location.column,
         };
-        
+
         buffer.write(
-            &format!("{:05} ", (current_location.row+1) % NUMBER_MOD),
+            &format!("{:05} ", (current_location.row + 1) % NUMBER_MOD),
             render_location,
-            view_location,
             NORMAL_STYLE,
             buffer.editor_top_left,
             size,
         );
     }
-
 
     #[allow(dead_code)]
     pub fn get_current_match_location(&self) -> Option<usize> {
@@ -1614,10 +1629,8 @@ impl Render for FileBuffer {
         let now = Instant::now();
         const SYNTAX_LOOKBACK: usize = 2048;
 
-        let mut current_location: Location = Location::new(
-            self.view_location.row,
-            self.view_location.column,
-        );
+        let mut current_location: Location =
+            Location::new(self.view_location.row, self.view_location.column);
 
         let view_location = self.view_location;
         let start_of_render = self.find_start_of_render(view_location).unwrap_or(0);
@@ -1633,25 +1646,16 @@ impl Render for FileBuffer {
             &(self.get_slice_string(start_of_syntax_highlight, end_of_syntax_highlight)),
         );
 
-        // numbers larger than this value will be %mod-eda
-        let NUMBER_COUNT = 5;
-
-        let left_border_column = buffer.editor_top_left.column;
         // TODO: Revise rendering of a box in a larger box (should be an intersection)
         let size = Size {
             rows: buffer.editor_size.rows,
-            columns: if self.show_line_number { 
-                buffer.editor_size.columns
-            } else {
-                buffer.editor_size.columns
-            },
+            columns: buffer.editor_size.columns,
         };
 
         let start_column = view_location.column;
-        let end_column = view_location.column + size.columns;
 
         let number_offset = if self.show_line_number {
-            NUMBER_COUNT+1
+            NUMBER_COUNT + 1
         } else {
             0
         };
@@ -1670,11 +1674,13 @@ impl Render for FileBuffer {
                         break;
                     }
 
-                    let render_location = Location{
+                    let render_location = Location {
                         row: (current_location.row + buffer.editor_top_left.row)
-                            .saturating_sub(view_location.row) ,
-                        column: (current_location.column + buffer.editor_top_left.column + number_offset)
-                            .saturating_sub(view_location.column)
+                            .saturating_sub(view_location.row),
+                        column: (current_location.column
+                            + buffer.editor_top_left.column
+                            + number_offset)
+                            .saturating_sub(view_location.column),
                     };
 
                     // iterate until hitting end of buffer or newline
@@ -1707,7 +1713,6 @@ impl Render for FileBuffer {
                             buffer.write(
                                 &SPACE_STRING,
                                 render_location,
-                                view_location,
                                 selected_style,
                                 buffer.editor_top_left,
                                 size,
@@ -1727,18 +1732,16 @@ impl Render for FileBuffer {
                                     buffer.write(
                                         &String::from(SPACE_STRING),
                                         tab_location,
-                                        view_location,
                                         tab_style.clone(),
                                         buffer.editor_top_left,
                                         size,
                                     );
                                 }
-                            } 
+                            }
                         } else {
                             buffer.write(
                                 &current_character_str,
                                 render_location,
-                                view_location,
                                 selected_style,
                                 buffer.editor_top_left,
                                 size,
@@ -1756,8 +1759,9 @@ impl Render for FileBuffer {
                                 row: render_location.row,
                                 column: render_location.column + 1,
                             };
-                            buffer.clear_row(next_column, view_location, size);
-                            current_location = Location::new(current_location.row, current_location.column + 1);
+                            buffer.clear_row(next_column, size);
+                            current_location =
+                                Location::new(current_location.row, current_location.column + 1);
                             break;
                         } else {
                             current_location =
@@ -1770,12 +1774,13 @@ impl Render for FileBuffer {
                             style.clone()
                         };
                         for tab_index in 0..TAB_CHARS_COUNT {
-                            let tab_location =
-                                Location::new(render_location.row, render_location.column + tab_index);
+                            let tab_location = Location::new(
+                                render_location.row,
+                                render_location.column + tab_index,
+                            );
                             buffer.write(
                                 &String::from(SPACE_STRING),
                                 tab_location,
-                                view_location,
                                 tab_style.clone(),
                                 buffer.editor_top_left,
                                 size,
@@ -1786,20 +1791,21 @@ impl Render for FileBuffer {
                             current_location.column + TAB_CHARS_COUNT,
                         );
                     } else if current_character == NEWLINE {
-                        buffer.clear_row(render_location, view_location, size);
-                        current_location = Location::new(current_location.row, current_location.column + 1);
+                        buffer.clear_row(render_location, size);
+                        current_location =
+                            Location::new(current_location.row, current_location.column + 1);
                         break;
                     } else {
                         let style = if char_selected { style.invert() } else { style };
                         buffer.write(
                             &current_character_str,
                             render_location,
-                            view_location,
                             style,
                             buffer.editor_top_left,
                             size,
                         );
-                        current_location = Location::new(current_location.row, current_location.column + 1);
+                        current_location =
+                            Location::new(current_location.row, current_location.column + 1);
                     }
                 }
             } else {
@@ -1814,28 +1820,28 @@ impl Render for FileBuffer {
                     size.columns - rendered_chars
                 };
 
-                let current_location =
-                    Location::new(
-                        current_location.row + buffer.editor_top_left.row,
-                        current_location.column + start_index + buffer.editor_top_left.column);
+                let current_location = Location::new(
+                    current_location.row + buffer.editor_top_left.row,
+                    current_location.column + start_index + buffer.editor_top_left.column,
+                );
                 if self.show_line_number {
                     self.render_line_number(current_location, view_location, *buffer, size);
                 }
                 for start_index in 0..buffer.size.columns {
-                    let current_location =
-                        Location::new(
-                            current_location.row + buffer.editor_top_left.row,
-                            current_location.column + start_index + buffer.editor_top_left.column);
+                    let current_location = Location::new(
+                        current_location.row + buffer.editor_top_left.row,
+                        current_location.column + start_index + buffer.editor_top_left.column,
+                    );
 
                     let render_location = Location::new(
                         current_location.row.saturating_sub(view_location.row),
-                        (current_location.column + number_offset).saturating_sub(view_location.column)
+                        (current_location.column + number_offset)
+                            .saturating_sub(view_location.column),
                     );
 
                     buffer.write(
                         &String::from(SPACE_STRING),
                         render_location,
-                        view_location,
                         NORMAL_STYLE,
                         buffer.editor_top_left,
                         size,
@@ -1844,7 +1850,10 @@ impl Render for FileBuffer {
             }
             current_location = Location::new(current_location.row + 1, view_location.column);
         }
-        log::info!("[Performance] Render for filebuffer: {:#?}", Instant::now().duration_since(now));
+        log::info!(
+            "[Performance] Render for filebuffer: {:#?}",
+            Instant::now().duration_since(now)
+        );
     }
 }
 
@@ -1854,7 +1863,10 @@ impl HandleSearchEvent for FileBuffer {
             self.pattern = search_event.pattern.clone();
             let now = Instant::now();
             self.matches = rabin_karp_search(search_event.pattern, &self.contents, 101);
-            log::info!("[Performance] Search time: {:?}", Instant::now().duration_since(now));
+            log::info!(
+                "[Performance] Search time: {:?}",
+                Instant::now().duration_since(now)
+            );
             self.set_match_index(0, window_buffer);
         } else if !self.matches.is_empty() {
             let mut new_match = self.current_match;
@@ -1890,7 +1902,9 @@ impl HandleGotoEvent for FileBuffer {
                 // jump to end of file
                 let count_lines = self.lines.len();
                 if count_lines > 0 {
-                    if let Some(last_line_location) = self.lines.location(count_lines.saturating_sub(1)) {
+                    if let Some(last_line_location) =
+                        self.lines.location(count_lines.saturating_sub(1))
+                    {
                         self.text_location = last_line_location;
                         self.align_buffer_vertical_up(&window_buffer);
                         self.align_buffer_vertical_down(&window_buffer, false);
@@ -4894,12 +4908,7 @@ impl HandleWindowEvent for Editor {
     }
 }
 
-
-fn is_render_location_in_buffer(
-    text_location: Location,
-    top_left: Location,
-    size: Size,
-) -> bool {
+fn is_render_location_in_buffer(text_location: Location, top_left: Location, size: Size) -> bool {
     text_location.row >= (top_left.row)
         && text_location.column >= (top_left.column)
         && text_location.row < (top_left.row + size.rows)
@@ -4916,11 +4925,4 @@ fn is_location_in_buffer(
         && text_location.column >= (top_left.column + view_location.column)
         && text_location.row < (top_left.row + view_location.row + size.rows)
         && text_location.column < (top_left.column + view_location.column + size.columns)
-}
-
-fn crop_location_with_buffer(text_location: Location, view_location: Location) -> Location {
-    Location {
-        row: text_location.row - view_location.row,
-        column: text_location.column - view_location.column,
-    }
 }
