@@ -361,6 +361,10 @@ impl LineIndex {
         if line == 0 {
             return Some(0);
         }
+        // if requested line beyond last location return None
+        if line >= self.line_size.len() {
+            return None;
+        }
         let end_line = cmp::min(line, self.line_size.len() - 1);
         Some(self.line_size[0..end_line].iter().sum())
     }
@@ -769,8 +773,11 @@ impl FileBuffer {
 
     fn down(&mut self) {
         let now = Instant::now();
+        let previous_text_location = self.text_location;
         self.text_location = self.find_next_line();
-        self.move_on_line_right(self.editing_offset);
+        if previous_text_location != self.text_location {
+            self.move_on_line_right(self.editing_offset);
+        }
         log::info!("[Performance] Move up: {:?}", Instant::now().duration_since(now));
     }
 
@@ -827,8 +834,8 @@ impl FileBuffer {
             end_of_line += 1;
         }
 
-        if end_of_line >= self.contents.len() {
-            return self.contents.len() - 1;
+        if end_of_line >= self.contents.len() - 1 {
+            return self.text_location;
         }
 
         if self.contents[end_of_line] != NEWLINE {
@@ -979,13 +986,13 @@ impl FileBuffer {
         }
     }
 
-    fn find_start_of_render(&self, view_location: Location) -> usize {
+    fn find_start_of_render(&self, view_location: Location) -> Option<usize> {
         match self.lines.location(view_location.row) {
-            Some(location) => location + cmp::min(
+            Some(location) => Some(location + cmp::min(
                 self.lines.line_length(view_location.row).unwrap_or(usize::MAX).saturating_sub(1),
                 view_location.column
-                ),
-            None => 0,
+                )),
+            None => None,
         }
     }
 
@@ -1089,6 +1096,7 @@ impl FileBuffer {
                 }
                 Key::Down => {
                     self.down();
+                    self.align_buffer_horizontal(&window_buffer);
                     self.align_buffer_vertical_down(&window_buffer, true);
                 }
                 Key::Right => {
@@ -1147,6 +1155,7 @@ impl FileBuffer {
                     for _ in 0..window_buffer.editor_size.rows {
                         self.down();
                     }
+                    self.align_buffer_horizontal(&window_buffer);
                     self.align_buffer_vertical_down(&window_buffer, false);
                 }
                 Key::Esc => {
@@ -1611,7 +1620,7 @@ impl Render for FileBuffer {
         );
 
         let view_location = self.view_location;
-        let start_of_render = self.find_start_of_render(view_location);
+        let start_of_render = self.find_start_of_render(view_location).unwrap_or(0);
 
         let start_of_syntax_highlight = if start_of_render < SYNTAX_LOOKBACK {
             0
@@ -1648,150 +1657,153 @@ impl Render for FileBuffer {
         };
 
         while current_location.row < view_location.row + buffer.size.rows {
-            let start_of_current_row = self.find_start_of_render(current_location);
             let mut anything_rendered = true;
 
             if self.show_line_number {
                 self.render_line_number(current_location, view_location, *buffer, size);
             }
 
-            for index in start_of_current_row..start_of_current_row + size.columns {
-                if index >= self.contents.len() {
-                    anything_rendered = false;
-                    break;
-                }
-
-                let render_location = Location{
-                    row: (current_location.row + buffer.editor_top_left.row)
-                        .saturating_sub(view_location.row) ,
-                    column: (current_location.column + buffer.editor_top_left.column + number_offset)
-                        .saturating_sub(view_location.column)
-                };
-
-                // iterate until hitting end of buffer or newline
-                let current_character: char = self.contents[index];
-
-                let mut current_character_str: String = String::from("");
-                current_character_str.push(current_character);
-
-                let syntax_style: Option<&SyntaxMatch> = highlights.iter().find(|x| {
-                    index >= (start_of_syntax_highlight + x.start)
-                        && index < (start_of_syntax_highlight + x.end)
-                });
-
-                let style = if let Some(actual_style) = syntax_style {
-                    actual_style.style.clone()
-                } else {
-                    NORMAL_STYLE
-                };
-
-                let char_selected = self.is_selected(index);
-                if self.text_location == index {
-                    let selected_style = if self.read_only {
-                        NORMAL_STYLE
-                    } else if char_selected {
-                        style.select_pointer()
-                    } else {
-                        style.invert()
-                    };
-                    if current_character == TAB || current_character == NEWLINE {
-                        buffer.write(
-                            &SPACE_STRING,
-                            render_location,
-                            view_location,
-                            selected_style,
-                            buffer.editor_top_left,
-                            size,
-                        );
-
-                        if current_character == TAB {
-                            let tab_style = if char_selected {
-                                style.invert()
-                            } else {
-                                style.clone()
-                            };
-                            for tab_index in 1..TAB_CHARS_COUNT {
-                                let tab_location = Location::new(
-                                    render_location.row,
-                                    render_location.column + tab_index,
-                                );
-                                buffer.write(
-                                    &String::from(SPACE_STRING),
-                                    tab_location,
-                                    view_location,
-                                    tab_style.clone(),
-                                    buffer.editor_top_left,
-                                    size,
-                                );
-                            }
-                        } 
-                    } else {
-                        buffer.write(
-                            &current_character_str,
-                            render_location,
-                            view_location,
-                            selected_style,
-                            buffer.editor_top_left,
-                            size,
-                        );
+            if let Some(start_of_current_row) = self.find_start_of_render(current_location) {
+                for index in start_of_current_row..start_of_current_row + size.columns {
+                    if index >= self.contents.len() {
+                        anything_rendered = false;
+                        break;
                     }
 
-                    if current_character == TAB {
+                    let render_location = Location{
+                        row: (current_location.row + buffer.editor_top_left.row)
+                            .saturating_sub(view_location.row) ,
+                        column: (current_location.column + buffer.editor_top_left.column + number_offset)
+                            .saturating_sub(view_location.column)
+                    };
+
+                    // iterate until hitting end of buffer or newline
+                    let current_character: char = self.contents[index];
+
+                    let mut current_character_str: String = String::from("");
+                    current_character_str.push(current_character);
+
+                    let syntax_style: Option<&SyntaxMatch> = highlights.iter().find(|x| {
+                        index >= (start_of_syntax_highlight + x.start)
+                            && index < (start_of_syntax_highlight + x.end)
+                    });
+
+                    let style = if let Some(actual_style) = syntax_style {
+                        actual_style.style.clone()
+                    } else {
+                        NORMAL_STYLE
+                    };
+
+                    let char_selected = self.is_selected(index);
+                    if self.text_location == index {
+                        let selected_style = if self.read_only {
+                            NORMAL_STYLE
+                        } else if char_selected {
+                            style.select_pointer()
+                        } else {
+                            style.invert()
+                        };
+                        if current_character == TAB || current_character == NEWLINE {
+                            buffer.write(
+                                &SPACE_STRING,
+                                render_location,
+                                view_location,
+                                selected_style,
+                                buffer.editor_top_left,
+                                size,
+                            );
+
+                            if current_character == TAB {
+                                let tab_style = if char_selected {
+                                    style.invert()
+                                } else {
+                                    style.clone()
+                                };
+                                for tab_index in 1..TAB_CHARS_COUNT {
+                                    let tab_location = Location::new(
+                                        render_location.row,
+                                        render_location.column + tab_index,
+                                    );
+                                    buffer.write(
+                                        &String::from(SPACE_STRING),
+                                        tab_location,
+                                        view_location,
+                                        tab_style.clone(),
+                                        buffer.editor_top_left,
+                                        size,
+                                    );
+                                }
+                            } 
+                        } else {
+                            buffer.write(
+                                &current_character_str,
+                                render_location,
+                                view_location,
+                                selected_style,
+                                buffer.editor_top_left,
+                                size,
+                            );
+                        }
+
+                        if current_character == TAB {
+                            current_location = Location::new(
+                                current_location.row,
+                                current_location.column + TAB_CHARS_COUNT,
+                            );
+                        } else if current_character == NEWLINE {
+                            // cover empty line - otherwise existing written characters may remain there
+                            let next_column = Location {
+                                row: render_location.row,
+                                column: render_location.column + 1,
+                            };
+                            buffer.clear_row(next_column, view_location, size);
+                            current_location = Location::new(current_location.row, current_location.column + 1);
+                            break;
+                        } else {
+                            current_location =
+                                Location::new(current_location.row, current_location.column + 1);
+                        }
+                    } else if current_character == TAB {
+                        let tab_style = if char_selected {
+                            style.invert()
+                        } else {
+                            style.clone()
+                        };
+                        for tab_index in 0..TAB_CHARS_COUNT {
+                            let tab_location =
+                                Location::new(render_location.row, render_location.column + tab_index);
+                            buffer.write(
+                                &String::from(SPACE_STRING),
+                                tab_location,
+                                view_location,
+                                tab_style.clone(),
+                                buffer.editor_top_left,
+                                size,
+                            );
+                        }
                         current_location = Location::new(
                             current_location.row,
                             current_location.column + TAB_CHARS_COUNT,
                         );
                     } else if current_character == NEWLINE {
-                        // cover empty line - otherwise existing written characters may remain there
-                        let next_column = Location {
-                            row: render_location.row,
-                            column: render_location.column + 1,
-                        };
-                        buffer.clear_row(next_column, view_location, size);
+                        buffer.clear_row(render_location, view_location, size);
                         current_location = Location::new(current_location.row, current_location.column + 1);
                         break;
                     } else {
-                        current_location =
-                            Location::new(current_location.row, current_location.column + 1);
-                    }
-                } else if current_character == TAB {
-                    let tab_style = if char_selected {
-                        style.invert()
-                    } else {
-                        style.clone()
-                    };
-                    for tab_index in 0..TAB_CHARS_COUNT {
-                        let tab_location =
-                            Location::new(render_location.row, render_location.column + tab_index);
+                        let style = if char_selected { style.invert() } else { style };
                         buffer.write(
-                            &String::from(SPACE_STRING),
-                            tab_location,
+                            &current_character_str,
+                            render_location,
                             view_location,
-                            tab_style.clone(),
+                            style,
                             buffer.editor_top_left,
                             size,
                         );
+                        current_location = Location::new(current_location.row, current_location.column + 1);
                     }
-                    current_location = Location::new(
-                        current_location.row,
-                        current_location.column + TAB_CHARS_COUNT,
-                    );
-                } else if current_character == NEWLINE {
-                    buffer.clear_row(render_location, view_location, size);
-                    current_location = Location::new(current_location.row, current_location.column + 1);
-                    break;
-                } else {
-                    let style = if char_selected { style.invert() } else { style };
-                    buffer.write(
-                        &current_character_str,
-                        render_location,
-                        view_location,
-                        style,
-                        buffer.editor_top_left,
-                        size,
-                    );
-                    current_location = Location::new(current_location.row, current_location.column + 1);
                 }
+            } else {
+                anything_rendered = false;
             }
 
             let rendered_chars = current_location.column.saturating_sub(start_column);
@@ -1816,15 +1828,15 @@ impl Render for FileBuffer {
                             current_location.column + start_index + buffer.editor_top_left.column);
 
                     let render_location = Location::new(
-                        current_location.row,
-                        current_location.column + number_offset
+                        current_location.row.saturating_sub(view_location.row),
+                        (current_location.column + number_offset).saturating_sub(view_location.column)
                     );
 
                     buffer.write(
                         &String::from(SPACE_STRING),
                         render_location,
                         view_location,
-                        INVISIBLE_STYLE,
+                        NORMAL_STYLE,
                         buffer.editor_top_left,
                         size,
                     );
