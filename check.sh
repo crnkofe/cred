@@ -8,7 +8,7 @@ then
 else
 	echo "Formatting check failed"
 	echo "To fix formatting run #cargo fmt --all"
-	sys.exit(1)
+	exit(1)
 fi
 
 cargo clippy -- -Dwarnings
@@ -17,5 +17,5 @@ then
 	echo "Clippy check succeeded."
 else
 	echo "Clippy check failed"
-	sys.exit(1)
+	exit(1)
 fi
