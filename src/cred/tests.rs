@@ -78,7 +78,7 @@ mod tests {
         assert_eq!(Some(0), index.location(0));
         assert_eq!(Some(1), index.location(1));
         assert_eq!(Some(3), index.location(2));
-        assert_eq!(Some(3), index.location(100));
+        assert_eq!(None, index.location(100));
     }
 
     #[test]
