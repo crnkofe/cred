@@ -574,10 +574,9 @@ impl Buffer {
 
     fn peek_event(&self, duration: Duration) -> Option<rustbox::EventResult> {
         unsafe {
-            match &EDITOR_BUFFER {
-                Some(rust_box) => Some(rust_box.peek_event(duration, false)),
-                None => None,
-            }
+            EDITOR_BUFFER
+                .as_ref()
+                .map(|rust_box| rust_box.peek_event(duration, false))
         }
     }
 
@@ -612,7 +611,7 @@ impl Buffer {
                     style.font_style,
                     style.foreground_color,
                     style.background_color,
-                    &string,
+                    string,
                 );
             }
         }
@@ -627,7 +626,7 @@ impl Buffer {
                     style.font_style,
                     style.foreground_color,
                     style.background_color,
-                    &string,
+                    string,
                 );
             }
         }
@@ -993,19 +992,16 @@ impl FileBuffer {
     }
 
     fn find_start_of_render(&self, view_location: Location) -> Option<usize> {
-        match self.lines.location(view_location.row) {
-            Some(location) => Some(
-                location
-                    + cmp::min(
-                        self.lines
-                            .line_length(view_location.row)
-                            .unwrap_or(usize::MAX)
-                            .saturating_sub(1),
-                        view_location.column,
-                    ),
-            ),
-            None => None,
-        }
+        self.lines.location(view_location.row).map(|location| {
+            location
+                + cmp::min(
+                    self.lines
+                        .line_length(view_location.row)
+                        .unwrap_or(usize::MAX)
+                        .saturating_sub(1),
+                    view_location.column,
+                )
+        })
     }
 
     fn redo(&mut self, window_buffer: Buffer) {
@@ -1511,10 +1507,7 @@ impl FileBuffer {
     }
 
     fn get_action_at(&mut self, action_index: usize) -> Option<Action> {
-        match self.action_history.get(action_index) {
-            Some(action) => Some(action.clone()),
-            None => None,
-        }
+        self.action_history.get(action_index).cloned()
     }
 
     fn action_redo(&mut self, action_index: usize, window_buffer: Buffer) {
@@ -1711,7 +1704,7 @@ impl Render for FileBuffer {
                         };
                         if current_character == TAB || current_character == NEWLINE {
                             buffer.write(
-                                &SPACE_STRING,
+                                SPACE_STRING,
                                 render_location,
                                 selected_style,
                                 buffer.editor_top_left,
@@ -2495,7 +2488,7 @@ fn open_callback(_item: &MenuItem) -> Event {
         window_event: Some(WindowEvent::open(ControlType::OpenFileMenu)),
         ..Event::new()
     }
-} 
+}
 
 fn open_buffer_callback(_item: &MenuItem) -> Event {
     // TODO: open buffers
@@ -2558,7 +2551,7 @@ fn save_file_buffer_callback(item: &MenuItem) -> Event {
                 if start + BUFFER_SIZE < item.contents.len() {
                     for j in start..start + BUFFER_SIZE {
                         if j >= item.contents.len() {
-                            buffer[j % BUFFER_SIZE] = 0 as u8;
+                            buffer[j % BUFFER_SIZE] = 0_u8;
                             continue;
                         }
                         if item.contents[j % BUFFER_SIZE] == '\u{0}' {
@@ -2676,9 +2669,7 @@ impl HandleKey for Menu {
             }
             Key::Enter | Key::Char(SPACE) => {
                 if let Some(selected_item) = self.items.iter().nth(self.selected_index) {
-                    if let result = (selected_item.callback)(selected_item) {
-                        return result;
-                    }
+                    return (selected_item.callback)(selected_item);
                 }
             }
             Key::Up => {
@@ -2721,9 +2712,7 @@ impl HandleKey for Menu {
                     .iter()
                     .find(|item| item.shortcut == Some(input_char))
                 {
-                    if let result = (item.callback)(item) {
-                        return result;
-                    }
+                    return (item.callback)(item);
                 }
             }
             _ => {
@@ -2859,9 +2848,7 @@ impl HandleKey for YesNoDialog {
             }
             Key::Enter => {
                 if let Some(selected_item) = self.menu_items.iter().nth(self.selected_index) {
-                    if let result = (selected_item.callback)(selected_item) {
-                        return result;
-                    }
+                    return (selected_item.callback)(selected_item);
                 }
             }
             Key::Left => {
@@ -2939,7 +2926,11 @@ impl Render for InputDialog {
         let all_text = format!(
             "{} {} ",
             self.text,
-            if self.input == "" { " " } else { &self.input }
+            if self.input.is_empty() {
+                " "
+            } else {
+                &self.input
+            }
         );
 
         for (text_index, c) in all_text.chars().enumerate() {
@@ -3030,7 +3021,7 @@ impl HandleKey for InputDialog {
             }
             Key::Enter => {
                 let mut gotoline_event = None;
-                if self.dialog_type == DialogType::Goto && self.input != "" {
+                if self.dialog_type == DialogType::Goto && !self.input.is_empty() {
                     match self.input.parse() {
                         Ok(result) => gotoline_event = Some(GotoLineEvent { line: result }),
                         Err(e) => {
@@ -3042,13 +3033,11 @@ impl HandleKey for InputDialog {
 
                 if let Some(selected_item) = self.menu_items.iter_mut().nth(self.selected_index) {
                     selected_item.file_path = self.input.clone();
-                    // if (selected_item.callback)(selected_item).is_some() {
-                        return Event {
-                            window_event: Some(WindowEvent::close(ControlType::InputDialog, None)),
-                            gotoline_event,
-                            ..Event::new()
-                        };
-                    // }
+                    return Event {
+                        window_event: Some(WindowEvent::close(ControlType::InputDialog, None)),
+                        gotoline_event,
+                        ..Event::new()
+                    };
                 }
 
                 return Event {
@@ -3164,22 +3153,25 @@ impl OpenFileMenu {
                 continue;
             }
 
-            if self.pattern != ""
+            if !self.pattern.is_empty()
                 && !pathbuf.is_dir()
                 && !String::from(pathbuf.to_str().unwrap_or("")).contains(&self.pattern)
             {
                 continue;
             }
 
-            if self.pattern != "" && pathbuf.is_dir() {
+            if !self.pattern.is_empty() && pathbuf.is_dir() {
             } else {
-                let visible = if self.pattern != "" { true } else { depth <= 1 };
+                let visible = if !self.pattern.is_empty() {
+                    true
+                } else {
+                    depth <= 1
+                };
                 children.push(FileItem {
                     is_dir: pathbuf.is_dir(),
                     path: pathbuf.clone(),
                     expanded: depth < 1,
                     visible,
-                    ..FileItem::new_file()
                 });
             }
 
@@ -3207,7 +3199,7 @@ impl OpenFileMenu {
     fn load_buffers(&self, buffers: &[FileBuffer]) -> std::io::Result<Vec<FileItem>> {
         let mut loaded_buffers: Vec<FileItem> = Vec::new();
         for buffer in buffers {
-            if self.pattern != ""
+            if !self.pattern.is_empty()
                 && !String::from(buffer.file_path.as_str()).contains(&self.pattern)
             {
                 continue;
@@ -3223,13 +3215,13 @@ impl OpenFileMenu {
     fn reload_buffers(&mut self) {
         self.items = Vec::new();
         for original_item in &self.original_items[..] {
-            if self.pattern != ""
+            if !self.pattern.is_empty()
                 && !String::from(original_item.path.to_str().unwrap_or("")).contains(&self.pattern)
             {
                 continue;
             }
 
-            if self.pattern != "" && original_item.is_dir {
+            if !self.pattern.is_empty() && original_item.is_dir {
                 continue;
             }
 
@@ -3380,28 +3372,15 @@ struct FileItem {
     is_dir: bool,
     // from path it should be easy to decypher parent path
     path: PathBuf,
-    // buffer id if item is buffer
-    buffer_id: Option<Uuid>,
 }
 
 impl FileItem {
-    fn new_file() -> Self {
-        Self {
-            expanded: false,
-            visible: true,
-            is_dir: false,
-            path: PathBuf::new(),
-            buffer_id: None,
-        }
-    }
-
-    fn new_buffer(uuid: Uuid) -> Self {
+    fn new_buffer(_uuid: Uuid) -> Self {
         Self {
             visible: true,
             expanded: false,
             is_dir: false,
             path: PathBuf::new(),
-            buffer_id: Some(uuid),
         }
     }
 }
@@ -3541,7 +3520,7 @@ impl Render for OpenFileMenu {
             self.get_origin().column + buffer.editor_top_left.column,
         );
 
-        let mode = if self.pattern != "" {
+        let mode = if !self.pattern.is_empty() {
             OpenMenuMode::Buffer
         } else {
             self.mode
@@ -4197,7 +4176,7 @@ impl Editor {
                 };
             }
 
-            if file_contents == "" {
+            if file_contents.is_empty() {
                 return;
             }
 
@@ -4425,7 +4404,7 @@ impl Editor {
         let pwd_path = env::current_dir()?;
         let mut file_buffer = FileBuffer {
             contents: vec!['\n'],
-            file_path: pwd_path.to_str().unwrap_or(&"").to_string(),
+            file_path: pwd_path.to_str().unwrap_or("").to_string(),
             show_line_number: true,
             ..FileBuffer::new(
                 Uuid::new_v4(),
@@ -4504,13 +4483,11 @@ impl Editor {
         };
         let buf_reader = BufReader::with_capacity(1024 * 10, file);
 
-        for line in buf_reader.lines() {
-            if let Ok(unwrapped_line) = line {
-                let mut char_vec: Vec<char> = unwrapped_line.chars().collect();
-                char_vec.push(NEWLINE);
-                file_buffer.lines.push_line(char_vec.len());
-                file_buffer.contents.append(&mut char_vec);
-            }
+        for line in buf_reader.lines().flatten() {
+            let mut char_vec: Vec<char> = line.chars().collect();
+            char_vec.push(NEWLINE);
+            file_buffer.lines.push_line(char_vec.len());
+            file_buffer.contents.append(&mut char_vec);
         }
 
         match file_path.to_str() {
