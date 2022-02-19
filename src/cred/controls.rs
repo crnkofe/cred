@@ -1427,7 +1427,7 @@ impl FileBuffer {
             }
         }
 
-        if self.pattern != "" {
+        if !self.pattern.is_empty() {
             return self
                 .matches
                 .iter()
@@ -2480,63 +2480,63 @@ struct Menu {
     size: Size,
 }
 
-type MenuItemCallback = fn(item: &MenuItem) -> Option<Event>;
+type MenuItemCallback = fn(item: &MenuItem) -> Event;
 
-fn new_callback(_item: &MenuItem) -> Option<Event> {
-    Some(Event {
+fn new_callback(_item: &MenuItem) -> Event {
+    Event {
         create_file_event: Some(CreateFileEvent {}),
         window_event: Some(WindowEvent::close(ControlType::Menu, None)),
         ..Event::new()
-    })
+    }
 }
 
-fn open_callback(_item: &MenuItem) -> Option<Event> {
-    Some(Event {
+fn open_callback(_item: &MenuItem) -> Event {
+    Event {
         window_event: Some(WindowEvent::open(ControlType::OpenFileMenu)),
         ..Event::new()
-    })
-}
+    }
+} 
 
-fn open_buffer_callback(_item: &MenuItem) -> Option<Event> {
+fn open_buffer_callback(_item: &MenuItem) -> Event {
     // TODO: open buffers
-    Some(Event {
+    Event {
         window_event: Some(WindowEvent::open(ControlType::FileBuffer)),
         ..Event::new()
-    })
+    }
 }
 
-fn save_callback(_item: &MenuItem) -> Option<Event> {
-    Some(Event {
+fn save_callback(_item: &MenuItem) -> Event {
+    Event {
         window_event: Some(WindowEvent::open(ControlType::YesNoDialog)),
         ..Event::new()
-    })
+    }
 }
 
-fn save_as_callback(_item: &MenuItem) -> Option<Event> {
-    Some(Event {
+fn save_as_callback(_item: &MenuItem) -> Event {
+    Event {
         window_event: Some(WindowEvent::open_dialog(
             ControlType::InputDialog,
             DialogType::Save,
         )),
         ..Event::new()
-    })
+    }
 }
 
-fn goto_line_callback(_item: &MenuItem) -> Option<Event> {
-    Some(Event {
+fn goto_line_callback(_item: &MenuItem) -> Event {
+    Event {
         window_event: Some(WindowEvent::close(ControlType::InputDialog, None)),
         ..Event::new()
-    })
+    }
 }
 
-fn save_as_close_callback(_item: &MenuItem) -> Option<Event> {
-    Some(Event {
+fn save_as_close_callback(_item: &MenuItem) -> Event {
+    Event {
         window_event: Some(WindowEvent::close(ControlType::InputDialog, None)),
         ..Event::new()
-    })
+    }
 }
 
-fn save_file_buffer_callback(item: &MenuItem) -> Option<Event> {
+fn save_file_buffer_callback(item: &MenuItem) -> Event {
     match OpenOptions::new()
         .create(true)
         .write(true)
@@ -2605,24 +2605,24 @@ fn save_file_buffer_callback(item: &MenuItem) -> Option<Event> {
             }
         }
     };
-    Some(Event {
+    Event {
         window_event: Some(WindowEvent::close(ControlType::YesNoDialog, None)),
         ..Event::new()
-    })
+    }
 }
 
-fn save_close_callback(_item: &MenuItem) -> Option<Event> {
-    Some(Event {
+fn save_close_callback(_item: &MenuItem) -> Event {
+    Event {
         window_event: Some(WindowEvent::close(ControlType::YesNoDialog, None)),
         ..Event::new()
-    })
+    }
 }
 
-fn exit_callback(_item: &MenuItem) -> Option<Event> {
-    Some(Event {
+fn exit_callback(_item: &MenuItem) -> Event {
+    Event {
         exit_event: Some(ExitEvent {}),
         ..Event::new()
-    })
+    }
 }
 
 struct MenuItem {
@@ -2676,7 +2676,7 @@ impl HandleKey for Menu {
             }
             Key::Enter | Key::Char(SPACE) => {
                 if let Some(selected_item) = self.items.iter().nth(self.selected_index) {
-                    if let Some(result) = (selected_item.callback)(selected_item) {
+                    if let result = (selected_item.callback)(selected_item) {
                         return result;
                     }
                 }
@@ -2721,7 +2721,7 @@ impl HandleKey for Menu {
                     .iter()
                     .find(|item| item.shortcut == Some(input_char))
                 {
-                    if let Some(result) = (item.callback)(item) {
+                    if let result = (item.callback)(item) {
                         return result;
                     }
                 }
@@ -2859,7 +2859,7 @@ impl HandleKey for YesNoDialog {
             }
             Key::Enter => {
                 if let Some(selected_item) = self.menu_items.iter().nth(self.selected_index) {
-                    if let Some(result) = (selected_item.callback)(selected_item) {
+                    if let result = (selected_item.callback)(selected_item) {
                         return result;
                     }
                 }
@@ -3042,13 +3042,13 @@ impl HandleKey for InputDialog {
 
                 if let Some(selected_item) = self.menu_items.iter_mut().nth(self.selected_index) {
                     selected_item.file_path = self.input.clone();
-                    if (selected_item.callback)(selected_item).is_some() {
+                    // if (selected_item.callback)(selected_item).is_some() {
                         return Event {
                             window_event: Some(WindowEvent::close(ControlType::InputDialog, None)),
                             gotoline_event,
                             ..Event::new()
                         };
-                    }
+                    // }
                 }
 
                 return Event {
