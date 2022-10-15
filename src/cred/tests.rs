@@ -306,7 +306,7 @@ mod tests {
 
         let contents: Vec<char> = String::from("test").chars().map(|x| x as char).collect();
         file_buffer.to_clipboard(contents);
-        file_buffer.from_clipboard();
+        file_buffer.copy_clipboard();
 
         let slice = file_buffer.get_slice_string(0, 5);
         assert_eq!("test", slice);
