@@ -1,4 +1,3 @@
-use regex::Regex;
 /**
  * MIT License
  *
@@ -22,6 +21,7 @@ use regex::Regex;
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
  * SOFTWARE.
  */
+use regex::Regex;
 use std::cmp;
 use std::cmp::Ordering;
 use std::env;
@@ -2530,6 +2530,7 @@ fn save_as_close_callback(_item: &MenuItem) -> Event {
 }
 
 fn save_file_buffer_callback(item: &MenuItem) -> Event {
+    log::info!("Saving to file {}", item.file_path);
     match OpenOptions::new()
         .create(true)
         .write(true)
@@ -2578,6 +2579,7 @@ fn save_file_buffer_callback(item: &MenuItem) -> Event {
                             continue;
                         }
                         buffer_one[0] = item.contents[j] as u8;
+
                         // write buffer to file
                         match file.write(&buffer_one) {
                             Ok(_) => { /* noop */ }
@@ -2645,6 +2647,17 @@ impl MenuItem {
             file_path: String::from(""),
             contents: Vec::new(),
             title,
+        }
+    }
+
+    pub fn from(menu_item: &MenuItem) -> Self {
+        Self {
+            shortcut: menu_item.shortcut,
+            selected: menu_item.selected,
+            callback: menu_item.callback,
+            file_path: menu_item.file_path.clone(),
+            contents: menu_item.contents.clone(),
+            title: menu_item.title.clone(),
         }
     }
 }
@@ -3020,6 +3033,15 @@ impl HandleKey for InputDialog {
                 };
             }
             Key::Enter => {
+                if self.dialog_type == DialogType::Save {
+                    if let Some(selected_item) = self.menu_items.iter().nth(self.selected_index) {
+                        // run save file callback on modified item with file_path from this InputDialog
+                        let mut item_copy = MenuItem::from(selected_item);
+                        item_copy.file_path = self.input.clone();
+                        return (selected_item.callback)(&item_copy);
+                    }
+                }
+
                 let mut gotoline_event = None;
                 if self.dialog_type == DialogType::Goto && !self.input.is_empty() {
                     match self.input.parse() {
