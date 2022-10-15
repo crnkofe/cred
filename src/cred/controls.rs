@@ -711,7 +711,7 @@ impl FileBuffer {
 
     pub fn get_slice_string(&self, from: usize, to: usize) -> String {
         let mut data: Vec<u8> = vec![0; cmp::min(self.contents.len() - from, to - from)];
-        for (i, c) in (&self.contents[from..cmp::min(self.contents.len(), to)])
+        for (i, c) in (self.contents[from..cmp::min(self.contents.len(), to)])
             .iter()
             .enumerate()
         {
@@ -1017,7 +1017,7 @@ impl FileBuffer {
         }
     }
 
-    pub fn from_clipboard(&mut self) {
+    pub fn copy_clipboard(&mut self) {
         let ctx_option = ClipboardProvider::new();
         if ctx_option.is_err() {
             log::warn!("Failed fetching clipboard provider.");
@@ -1074,7 +1074,7 @@ impl FileBuffer {
                         }
                     }
                     CTRL_PASTE_SHORTCUT => {
-                        self.from_clipboard();
+                        self.copy_clipboard();
                     }
                     CTRL_UNDO_REDO_SHORTCUT => {
                         return Event {
@@ -3318,14 +3318,8 @@ impl OpenFileMenu {
                 if current_item.path == item.path {
                     continue;
                 }
-                if String::from(
-                    current_item
-                        .path
-                        .as_path()
-                        .to_str()
-                        .unwrap_or(&String::from("")),
-                )
-                .starts_with(&item_path)
+                if String::from(current_item.path.as_path().to_str().unwrap_or(""))
+                    .starts_with(&item_path)
                 {
                     current_item.visible = item.expanded;
                 }
@@ -3685,15 +3679,14 @@ impl Editor {
             // Create a path to the desired file
             // TODO: open multiple files
             let file_path = Path::new(&args[1]);
-            let joined_pathbuf: std::path::PathBuf;
 
             let pwd_path = env::current_dir()?;
-            if file_path.is_relative() {
+            let joined_pathbuf: std::path::PathBuf = if file_path.is_relative() {
                 let old_relative_path: &Path = file_path;
-                joined_pathbuf = pwd_path.as_path().join(old_relative_path);
+                pwd_path.as_path().join(old_relative_path)
             } else {
-                joined_pathbuf = file_path.to_path_buf();
-            }
+                file_path.to_path_buf()
+            };
 
             if self.open_file_buffer(joined_pathbuf).is_err() {
                 log::info!("Opened file: {:?}", file_path.display());
@@ -4161,11 +4154,10 @@ impl Editor {
         };
 
         if let Some(control_reference) = self.controls.last() {
-            let file_contents;
-            if show_intro {
-                file_contents = include_str!("help/intro.md");
+            let file_contents = if show_intro {
+                include_str!("help/intro.md")
             } else {
-                file_contents = match control_reference.control_type {
+                match control_reference.control_type {
                     ControlType::FileBuffer => include_str!("help/buffer.md"),
                     ControlType::Menu => include_str!("help/menu.md"),
                     ControlType::OpenFileMenu => include_str!("help/openfile.md"),
@@ -4173,8 +4165,8 @@ impl Editor {
                     ControlType::SelectionOverlay => include_str!("help/selection.md"),
                     ControlType::SearchOverlay => include_str!("help/search.md"),
                     _ => "",
-                };
-            }
+                }
+            };
 
             if file_contents.is_empty() {
                 return;
@@ -4369,11 +4361,8 @@ impl Editor {
 
         let current_path = env::current_dir()?;
         open_file_menu.last_loaded_dir = Some(current_path.clone());
-        for item in open_file_menu
-            .load_directory(current_path, LOAD_DIRECTORY_DEPTH)
-            .iter()
-        {
-            open_file_menu.items = item.clone();
+        if let Ok(item) = open_file_menu.load_directory(current_path, LOAD_DIRECTORY_DEPTH) {
+            open_file_menu.items = item
         }
         open_file_menu.total_items = open_file_menu.count_elements();
 

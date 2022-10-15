@@ -32,7 +32,7 @@ use std::slice::Iter;
  * Each element of that heap has a reference to a control.
  * Each control is stored in a separate field
  */
-#[derive(Copy, Clone, Debug, PartialEq)]
+#[derive(Copy, Clone, Debug, Eq, PartialEq)]
 pub enum ControlType {
     FileBuffer,
     Menu,
@@ -141,7 +141,7 @@ pub const NUMBER: FontStyle = FontStyle {
 };
 */
 
-#[derive(Copy, Clone, Debug, PartialEq)]
+#[derive(Copy, Clone, Debug, Eq, PartialEq)]
 pub enum Coverage {
     // select from start to end
     FromTo,
@@ -156,7 +156,7 @@ impl Coverage {
     }
 }
 
-#[derive(Copy, Clone, Debug, PartialEq)]
+#[derive(Copy, Clone, Debug, Eq, PartialEq)]
 pub enum UndoRedoAction {
     Undo,
     Redo,
