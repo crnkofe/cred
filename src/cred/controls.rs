@@ -3154,6 +3154,7 @@ impl OpenFileMenu {
      * Load first N-levels directory and files under given path
      */
     fn load_directory(&self, dir: PathBuf, levels: usize) -> std::io::Result<Vec<FileItem>> {
+        log::info!("Running load directory");
         let mut children: Vec<FileItem> = Vec::new();
 
         let mut dirs_to_process: Vec<(usize, PathBuf)> = Vec::new();
@@ -3187,12 +3188,13 @@ impl OpenFileMenu {
                 let visible = if !self.pattern.is_empty() {
                     true
                 } else {
-                    depth <= 1
+                    depth == 0
                 };
                 children.push(FileItem {
                     is_dir: pathbuf.is_dir(),
                     path: pathbuf.clone(),
-                    expanded: depth < 1,
+                    expanded: false,
+                    depth,
                     visible,
                 });
             }
@@ -3340,6 +3342,10 @@ impl OpenFileMenu {
                 if current_item.path == item.path {
                     continue;
                 }
+                if current_item.depth != item.depth + 1 {
+                    // when opening dirs only toggle 1 level lower
+                    continue;
+                }
                 if String::from(current_item.path.as_path().to_str().unwrap_or(""))
                     .starts_with(&item_path)
                 {
@@ -3386,6 +3392,7 @@ struct FileItem {
     expanded: bool,
     visible: bool,
     is_dir: bool,
+    depth: usize,
     // from path it should be easy to decypher parent path
     path: PathBuf,
 }
@@ -3396,6 +3403,7 @@ impl FileItem {
             visible: true,
             expanded: false,
             is_dir: false,
+            depth: 0,
             path: PathBuf::new(),
         }
     }
@@ -3515,9 +3523,31 @@ impl Render for OpenFileMenu {
         let mut count = self.view_start;
         let mut selected_item = self.selected_index;
         let mut count_invisible = 0;
+
+        let mut visibility_stack: Vec<bool> = Vec::new();
         while items_to_render.len() < max_displayed && count < self.items.len() {
             let item = &self.items[count];
-            if !item.visible {
+
+            while item.depth < visibility_stack.len() {
+                visibility_stack.pop();
+            }
+
+            let vis_stack_len = visibility_stack.len();
+            if vis_stack_len == 0 || item.depth > vis_stack_len {
+                visibility_stack.push(item.visible)
+            } else if item.depth == vis_stack_len {
+                visibility_stack[vis_stack_len - 1] = item.visible
+            }
+
+            // if at least one parent is hidden hide all subitems
+            let mut skip = false;
+            for visible in &visibility_stack {
+                if !visible {
+                    skip = true;
+                    break;
+                }
+            }
+            if skip {
                 count += 1;
                 count_invisible += 1;
                 continue;
@@ -4512,7 +4542,7 @@ impl Editor {
                 break;
             }
         }
-        if line.len() > 0 {
+        if !line.is_empty() {
             // this can happen if last or only line in file doesn't have a NEWLINE char
             file_buffer.lines.push_line(line.len());
             file_buffer.contents.append(&mut line);

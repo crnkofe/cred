@@ -26,8 +26,8 @@
 mod tests {
 
     use chrono::Utc;
-    use std::fs;
     use std::env;
+    use std::fs;
     use std::fs::File;
     use std::io::Write;
     use std::path::PathBuf;
@@ -531,8 +531,72 @@ mod tests {
         assert_eq!("1\ntest", saved_contents)
     }
 
-    // ideally files shouldn't be created on disk for unit tests but this is convenient for the
-    // moment
+    #[test]
+    fn test_editor_save_as() {
+        assert_eq!(true, setup().is_ok());
+        let mut editor = Editor::new();
+        assert_eq!(true, editor.init(OutputMode::NoOutput).is_ok());
+
+        let hide_help =
+            Event::KeyEvent(ExtendedKey::new(Key::Esc, Modifiers { ..Modifiers::new() }));
+        assert_eq!(true, editor.handle_event_option(Some(Ok(hide_help))));
+
+        let temp_file = gen_testfile(String::from("test"));
+
+        let open_this_test = events::Event {
+            open_file_event: Some(events::OpenFileEvent {
+                path: PathBuf::from(temp_file.clone()),
+            }),
+            ..events::Event::new()
+        };
+        assert_eq!(true, editor.handle_event(open_this_test));
+        assert_eq!(2, editor.file_buffer_controls.len());
+
+        let file_buffer = editor.get_active_file_buffer().unwrap();
+        let slice = file_buffer.get_slice_string(0, 18);
+        assert_eq!("test", slice);
+
+        let key_newline = Event::KeyEvent(ExtendedKey::new(Key::Char('1'), Modifiers::new()));
+        assert_eq!(true, editor.handle_event_option(Some(Ok(key_newline))));
+        let ok = Event::KeyEvent(ExtendedKey::new(Key::Enter, Modifiers::new()));
+        assert_eq!(true, editor.handle_event_option(Some(Ok(ok))));
+
+        let menu = Event::KeyEvent(ExtendedKey::new(
+            Key::Char('d'),
+            Modifiers {
+                ctrl: true,
+                ..Modifiers::new()
+            },
+        ));
+        assert_eq!(true, editor.handle_event_option(Some(Ok(menu))));
+
+        // Save As
+        let save_shortcut = Event::KeyEvent(ExtendedKey::new(Key::Char('a'), Modifiers::new()));
+        assert_eq!(true, editor.handle_event_option(Some(Ok(save_shortcut))));
+
+        // Clear old name which by default is displayed
+        for _ in temp_file.chars() {
+            let key_ch = Event::KeyEvent(ExtendedKey::new(Key::Backspace, Modifiers::new()));
+            assert_eq!(true, editor.handle_event_option(Some(Ok(key_ch))));
+        }
+
+        // Type in new name
+        let second_temp_file = gen_testfile(String::from(""));
+        for ch in second_temp_file.chars() {
+            let key_ch = Event::KeyEvent(ExtendedKey::new(Key::Char(ch), Modifiers::new()));
+            assert_eq!(true, editor.handle_event_option(Some(Ok(key_ch))));
+        }
+
+        let save_as_ok = Event::KeyEvent(ExtendedKey::new(Key::Enter, Modifiers::new()));
+        assert_eq!(true, editor.handle_event_option(Some(Ok(save_as_ok))));
+
+        let saved_contents = fs::read_to_string(second_temp_file.clone()).unwrap();
+        assert_eq!("1\ntest", saved_contents)
+    }
+
+    // Generate a testfile in /tmp dir (on Linux) with a timestamp and rand num postfix.
+    // Ideally files shouldn't be created on disk for unit tests since this can cause them to fail
+    // at random but this is convenient for the moment
     fn gen_testfile(contents: String) -> String {
         let dir = env::temp_dir();
         let mut rng = rand::thread_rng();
