@@ -4492,13 +4492,30 @@ impl Editor {
                 self.syntax_highlight.find_syntax(pathbuf.clone()),
             )
         };
-        let buf_reader = BufReader::with_capacity(1024 * 10, file);
+        let mut buf_reader = BufReader::with_capacity(1024 * 10, file);
 
-        for line in buf_reader.lines().flatten() {
-            let mut char_vec: Vec<char> = line.chars().collect();
-            char_vec.push(NEWLINE);
-            file_buffer.lines.push_line(char_vec.len());
-            file_buffer.contents.append(&mut char_vec);
+        const BUFFER_SIZE: usize = 1024;
+        let mut buffer: [u8; BUFFER_SIZE] = [0; BUFFER_SIZE];
+        let mut line: Vec<char> = Vec::new();
+        loop {
+            let read_bytes = buf_reader.read(&mut buffer)?;
+            for rawch in &buffer[0..read_bytes] {
+                let ch = *rawch as char;
+                line.push(ch);
+                if ch == NEWLINE {
+                    file_buffer.lines.push_line(line.len());
+                    file_buffer.contents.append(&mut line);
+                    line = Vec::new();
+                }
+            }
+            if read_bytes != BUFFER_SIZE {
+                break;
+            }
+        }
+        if line.len() > 0 {
+            // this can happen if last or only line in file doesn't have a NEWLINE char
+            file_buffer.lines.push_line(line.len());
+            file_buffer.contents.append(&mut line);
         }
 
         match file_path.to_str() {
