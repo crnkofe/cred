@@ -71,7 +71,6 @@ Github actions also trigger on each push. See .github/workflows/runtest.yml for 
 Current priority is a focus on making editor more resilient, finding bugs and the ability to better edit itself.
 
 Assorted ideas for future releases:
-* show line numbers
 * allow shortcut configuration
 * handle large files gracefully (async load, optimize simple commands)
 * compile rust source file (Rust)
