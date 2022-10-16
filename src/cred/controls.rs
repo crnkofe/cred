@@ -3159,7 +3159,6 @@ impl OpenFileMenu {
      * Load first N-levels directory and files under given path
      */
     fn load_directory(&self, dir: PathBuf, levels: usize) -> std::io::Result<Vec<FileItem>> {
-        log::info!("Running load directory");
         let mut children: Vec<FileItem> = Vec::new();
 
         let mut dirs_to_process: Vec<PathBufItem> = Vec::new();
@@ -3173,7 +3172,7 @@ impl OpenFileMenu {
                     });
                 }
                 Err(e) => {
-                    log::warn!("Failed readir dir: {:?} reason: {:?}", dir, e);
+                    log::warn!("Failed reading dir: {:?} reason: {:?}", dir, e);
                 }
             }
         }
@@ -3389,7 +3388,6 @@ impl OpenFileMenu {
                 if String::from(current_item.path.as_path().to_str().unwrap_or(""))
                     .starts_with(&item_path)
                 {
-                    log::warn!("Selecting item: {:?} {:?}", current_item, item_path);
                     current_item.visible = item.expanded;
                 }
             }
