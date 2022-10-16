@@ -3374,7 +3374,10 @@ impl OpenFileMenu {
         if selected_path.is_none() {
             let item = self.items[self.selected_index].clone();
 
-            let item_path = String::from(item.path.as_path().to_str().unwrap_or(""));
+            let mut item_path = String::from(item.path.as_path().to_str().unwrap_or(""));
+            // appending platform file separator solves the issue with expanding same-prefixed
+            // folders (ie. .git, .github)
+            item_path.push(std::path::MAIN_SEPARATOR);
             for current_item in self.items.iter_mut() {
                 if current_item.path == item.path {
                     continue;
@@ -3386,6 +3389,7 @@ impl OpenFileMenu {
                 if String::from(current_item.path.as_path().to_str().unwrap_or(""))
                     .starts_with(&item_path)
                 {
+                    log::warn!("Selecting item: {:?} {:?}", current_item, item_path);
                     current_item.visible = item.expanded;
                 }
             }
