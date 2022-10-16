@@ -3149,6 +3149,11 @@ struct OpenFileMenu {
     size: Size,
 }
 
+struct PathBufItem {
+    depth: usize,
+    pathbuf: PathBuf,
+}
+
 impl OpenFileMenu {
     /**
      * Load first N-levels directory and files under given path
@@ -3157,12 +3162,15 @@ impl OpenFileMenu {
         log::info!("Running load directory");
         let mut children: Vec<FileItem> = Vec::new();
 
-        let mut dirs_to_process: Vec<(usize, PathBuf)> = Vec::new();
+        let mut dirs_to_process: Vec<PathBufItem> = Vec::new();
 
         for entry in fs::read_dir(dir.as_path())? {
             match entry {
                 Ok(dir) => {
-                    dirs_to_process.push((0, dir.path().to_path_buf()));
+                    dirs_to_process.push(PathBufItem{
+                        depth: 0,
+                        pathbuf: dir.path().to_path_buf(),
+                    });
                 }
                 Err(e) => {
                     log::warn!("Failed readir dir: {:?} reason: {:?}", dir, e);
@@ -3170,48 +3178,77 @@ impl OpenFileMenu {
             }
         }
 
+        dirs_to_process.sort_by(|l, r| {
+            if l.pathbuf.is_dir() == r.pathbuf.is_dir() {
+                l.pathbuf.to_str().unwrap().partial_cmp(&r.pathbuf.to_str().unwrap()).unwrap()
+            } else if l.pathbuf.is_dir() && !r.pathbuf.is_dir() {
+                Ordering::Less
+            } else {
+                Ordering::Greater
+            }
+        });
+
         while !dirs_to_process.is_empty() {
-            let (depth, pathbuf) = dirs_to_process.remove(0);
-            if depth >= levels {
+            let pathbuf_item = dirs_to_process.remove(0);
+            if pathbuf_item.depth >= levels {
                 continue;
             }
 
+            let is_dir = pathbuf_item.pathbuf.is_dir();
             if !self.pattern.is_empty()
-                && !pathbuf.is_dir()
-                && !String::from(pathbuf.to_str().unwrap_or("")).contains(&self.pattern)
+                && !is_dir
+                && !String::from(pathbuf_item.pathbuf.to_str().unwrap_or("")).contains(&self.pattern)
             {
                 continue;
             }
 
-            if !self.pattern.is_empty() && pathbuf.is_dir() {
+            if !self.pattern.is_empty() && is_dir {
             } else {
                 let visible = if !self.pattern.is_empty() {
                     true
                 } else {
-                    depth == 0
+                    pathbuf_item.depth == 0
                 };
                 children.push(FileItem {
-                    is_dir: pathbuf.is_dir(),
-                    path: pathbuf.clone(),
+                    is_dir: is_dir,
+                    path: pathbuf_item.pathbuf.clone(),
                     expanded: false,
-                    depth,
+                    depth: pathbuf_item.depth,
                     visible,
                 });
             }
 
-            if depth < LOAD_DIRECTORY_DEPTH && pathbuf.is_dir() {
-                let mut entry_index = 0;
-                for entry in fs::read_dir(pathbuf.as_path())? {
+            if pathbuf_item.depth < LOAD_DIRECTORY_DEPTH && is_dir {
+                let mut subdirs_to_process: Vec<PathBufItem> = Vec::new();
+                for entry in fs::read_dir(pathbuf_item.pathbuf.as_path())? {
                     match entry {
                         Ok(dir) => {
-                            dirs_to_process
-                                .insert(entry_index, (depth + 1, dir.path().to_path_buf()));
-                            entry_index += 1;
+                            subdirs_to_process
+                                .push(PathBufItem{
+                                    depth: pathbuf_item.depth + 1,
+                                    pathbuf: dir.path().to_path_buf(),
+                                });
                         }
                         Err(e) => {
-                            log::warn!("Failed readir dir: {:?} reason: {:?}", dir, e);
+                            log::warn!("Failed reading dir: {:?} reason: {:?}", dir, e);
                         }
                     }
+                }
+
+                subdirs_to_process.sort_by(|l, r| {
+                    if l.pathbuf.is_dir() == r.pathbuf.is_dir() {
+                        l.pathbuf.to_str().unwrap().partial_cmp(&r.pathbuf.to_str().unwrap()).unwrap()
+                    } else if l.pathbuf.is_dir() && !r.pathbuf.is_dir() {
+                        Ordering::Less
+                    } else {
+                        Ordering::Greater
+                    }
+                });
+
+                let mut entry_index = 0;
+                for subdir in subdirs_to_process {
+                    dirs_to_process.insert(entry_index, subdir);
+                    entry_index += 1;
                 }
             }
         }
