@@ -25,6 +25,11 @@
 #[cfg(test)]
 mod tests {
 
+    use chrono::Utc;
+    use std::env;
+    use std::fs;
+    use std::fs::File;
+    use std::io::Write;
     use std::path::PathBuf;
     use std::sync::Once;
 
@@ -40,6 +45,7 @@ mod tests {
     use std::error::Error;
 
     use crate::cred::events::HandleSearchEvent;
+    use rand::Rng;
     use rustbox::{Event, ExtendedKey, Key, Modifiers, OutputMode};
 
     static LOG_INIT: Once = Once::new();
@@ -292,6 +298,7 @@ mod tests {
         assert_eq!(false, editor.handle_event_option(Some(Ok(exit_shortcut))));
     }
 
+    // TODO: Fix
     #[ignore]
     #[test]
     fn test_editor_copy_paste() {
@@ -306,7 +313,7 @@ mod tests {
 
         let contents: Vec<char> = String::from("test").chars().map(|x| x as char).collect();
         file_buffer.to_clipboard(contents);
-        file_buffer.from_clipboard();
+        file_buffer.copy_clipboard();
 
         let slice = file_buffer.get_slice_string(0, 5);
         assert_eq!("test", slice);
@@ -473,5 +480,136 @@ mod tests {
             let text_location = file_buffer.get_text_location();
             assert_eq!(0, text_location);
         }
+    }
+
+    #[test]
+    fn test_editor_save() {
+        assert_eq!(true, setup().is_ok());
+        let mut editor = Editor::new();
+        assert_eq!(true, editor.init(OutputMode::NoOutput).is_ok());
+
+        let hide_help =
+            Event::KeyEvent(ExtendedKey::new(Key::Esc, Modifiers { ..Modifiers::new() }));
+        assert_eq!(true, editor.handle_event_option(Some(Ok(hide_help))));
+
+        let temp_file = gen_testfile(String::from("test"));
+
+        let open_this_test = events::Event {
+            open_file_event: Some(events::OpenFileEvent {
+                path: PathBuf::from(temp_file.clone()),
+            }),
+            ..events::Event::new()
+        };
+        assert_eq!(true, editor.handle_event(open_this_test));
+        assert_eq!(2, editor.file_buffer_controls.len());
+
+        let file_buffer = editor.get_active_file_buffer().unwrap();
+        let slice = file_buffer.get_slice_string(0, 18);
+        assert_eq!("test", slice);
+
+        let key_newline = Event::KeyEvent(ExtendedKey::new(Key::Char('1'), Modifiers::new()));
+        assert_eq!(true, editor.handle_event_option(Some(Ok(key_newline))));
+        let ok = Event::KeyEvent(ExtendedKey::new(Key::Enter, Modifiers::new()));
+        assert_eq!(true, editor.handle_event_option(Some(Ok(ok))));
+
+        let menu = Event::KeyEvent(ExtendedKey::new(
+            Key::Char('d'),
+            Modifiers {
+                ctrl: true,
+                ..Modifiers::new()
+            },
+        ));
+        assert_eq!(true, editor.handle_event_option(Some(Ok(menu))));
+
+        let save_shortcut = Event::KeyEvent(ExtendedKey::new(Key::Char('s'), Modifiers::new()));
+        assert_eq!(true, editor.handle_event_option(Some(Ok(save_shortcut))));
+
+        let save_ok = Event::KeyEvent(ExtendedKey::new(Key::Enter, Modifiers::new()));
+        assert_eq!(true, editor.handle_event_option(Some(Ok(save_ok))));
+
+        let saved_contents = fs::read_to_string(temp_file.clone()).unwrap();
+        assert_eq!("1\ntest", saved_contents)
+    }
+
+    #[test]
+    fn test_editor_save_as() {
+        assert_eq!(true, setup().is_ok());
+        let mut editor = Editor::new();
+        assert_eq!(true, editor.init(OutputMode::NoOutput).is_ok());
+
+        let hide_help =
+            Event::KeyEvent(ExtendedKey::new(Key::Esc, Modifiers { ..Modifiers::new() }));
+        assert_eq!(true, editor.handle_event_option(Some(Ok(hide_help))));
+
+        let temp_file = gen_testfile(String::from("test"));
+
+        let open_this_test = events::Event {
+            open_file_event: Some(events::OpenFileEvent {
+                path: PathBuf::from(temp_file.clone()),
+            }),
+            ..events::Event::new()
+        };
+        assert_eq!(true, editor.handle_event(open_this_test));
+        assert_eq!(2, editor.file_buffer_controls.len());
+
+        let file_buffer = editor.get_active_file_buffer().unwrap();
+        let slice = file_buffer.get_slice_string(0, 18);
+        assert_eq!("test", slice);
+
+        let key_newline = Event::KeyEvent(ExtendedKey::new(Key::Char('1'), Modifiers::new()));
+        assert_eq!(true, editor.handle_event_option(Some(Ok(key_newline))));
+        let ok = Event::KeyEvent(ExtendedKey::new(Key::Enter, Modifiers::new()));
+        assert_eq!(true, editor.handle_event_option(Some(Ok(ok))));
+
+        let menu = Event::KeyEvent(ExtendedKey::new(
+            Key::Char('d'),
+            Modifiers {
+                ctrl: true,
+                ..Modifiers::new()
+            },
+        ));
+        assert_eq!(true, editor.handle_event_option(Some(Ok(menu))));
+
+        // Save As
+        let save_shortcut = Event::KeyEvent(ExtendedKey::new(Key::Char('a'), Modifiers::new()));
+        assert_eq!(true, editor.handle_event_option(Some(Ok(save_shortcut))));
+
+        // Clear old name which by default is displayed
+        for _ in temp_file.chars() {
+            let key_ch = Event::KeyEvent(ExtendedKey::new(Key::Backspace, Modifiers::new()));
+            assert_eq!(true, editor.handle_event_option(Some(Ok(key_ch))));
+        }
+
+        // Type in new name
+        let second_temp_file = gen_testfile(String::from(""));
+        for ch in second_temp_file.chars() {
+            let key_ch = Event::KeyEvent(ExtendedKey::new(Key::Char(ch), Modifiers::new()));
+            assert_eq!(true, editor.handle_event_option(Some(Ok(key_ch))));
+        }
+
+        let save_as_ok = Event::KeyEvent(ExtendedKey::new(Key::Enter, Modifiers::new()));
+        assert_eq!(true, editor.handle_event_option(Some(Ok(save_as_ok))));
+
+        let saved_contents = fs::read_to_string(second_temp_file.clone()).unwrap();
+        assert_eq!("1\ntest", saved_contents)
+    }
+
+    // Generate a testfile in /tmp dir (on Linux) with a timestamp and rand num postfix.
+    // Ideally files shouldn't be created on disk for unit tests since this can cause them to fail
+    // at random but this is convenient for the moment
+    fn gen_testfile(contents: String) -> String {
+        let dir = env::temp_dir();
+        let mut rng = rand::thread_rng();
+        let num: u64 = rng.gen();
+        let dt = Utc::now();
+        let timestamp: i64 = dt.timestamp();
+        let temp_file = dir.join(format!("cred-test-file-{}-{}", timestamp, num));
+        let mut file = File::create(temp_file.clone()).unwrap();
+        file.write(contents.as_bytes()).unwrap();
+        let temp_filename = &temp_file.into_os_string().into_string();
+        return match temp_filename {
+            Ok(v) => v.clone(),
+            Err(_) => String::new(),
+        };
     }
 }

@@ -37,7 +37,7 @@ pub enum WindowAction {
     Close,
 }
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub enum DialogType {
     Save,
     Goto,
@@ -88,7 +88,7 @@ pub struct UndoEvent {
 #[derive(Clone, Debug)]
 pub struct ExitEvent {}
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub enum SearchDirection {
     Forward,
     Backward,
@@ -100,7 +100,7 @@ pub struct SearchEvent {
     pub pattern: String,
 }
 
-#[derive(Copy, Clone, Debug, PartialEq)]
+#[derive(Copy, Clone, Debug, Eq, PartialEq)]
 pub enum SelectAction {
     // user selected start of selection
     Start,

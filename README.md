@@ -4,6 +4,21 @@ A Linux WYSIWYG console editor in Rust(!) loosely inspired by ye-olde Turbo Pasc
 This editor makes most commands available to left hand only since right hand is way overused in development 
 and avoids piano 2+ keys shortcuts.
 
+
+## Prerequisites
+
+On Debian 11 make sure to install libxcb libraries:
+```bash
+sudo apt install libxcb-xfixes0-dev
+```
+
+## Build and run
+
+To build
+```bash
+cargo build
+```
+
 To run
 ```bash
 cargo r
@@ -56,7 +71,6 @@ Github actions also trigger on each push. See .github/workflows/runtest.yml for 
 Current priority is a focus on making editor more resilient, finding bugs and the ability to better edit itself.
 
 Assorted ideas for future releases:
-* show line numbers
 * allow shortcut configuration
 * handle large files gracefully (async load, optimize simple commands)
 * compile rust source file (Rust)

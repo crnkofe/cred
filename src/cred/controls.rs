@@ -1,4 +1,3 @@
-use regex::Regex;
 /**
  * MIT License
  *
@@ -22,6 +21,7 @@ use regex::Regex;
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
  * SOFTWARE.
  */
+use regex::Regex;
 use std::cmp;
 use std::cmp::Ordering;
 use std::env;
@@ -101,7 +101,7 @@ const CTRL_UNDO_REDO_SHORTCUT: char = 'z';
 // search shortcuts
 const CTRL_SEARCH_SHORTCUT: char = 'f';
 const SEARCH_FORWARD_SHORTCUT: char = 'f';
-const SEARCH_BACKWARD_SHORTCUT: char = 'd';
+const SEARCH_BACKWARD_SHORTCUT: char = 'b';
 
 // wsad movement shortcuts where applicable
 const GAME_UP_SHORTCUT: char = 'w';
@@ -711,7 +711,7 @@ impl FileBuffer {
 
     pub fn get_slice_string(&self, from: usize, to: usize) -> String {
         let mut data: Vec<u8> = vec![0; cmp::min(self.contents.len() - from, to - from)];
-        for (i, c) in (&self.contents[from..cmp::min(self.contents.len(), to)])
+        for (i, c) in (self.contents[from..cmp::min(self.contents.len(), to)])
             .iter()
             .enumerate()
         {
@@ -1017,7 +1017,7 @@ impl FileBuffer {
         }
     }
 
-    pub fn from_clipboard(&mut self) {
+    pub fn copy_clipboard(&mut self) {
         let ctx_option = ClipboardProvider::new();
         if ctx_option.is_err() {
             log::warn!("Failed fetching clipboard provider.");
@@ -1074,7 +1074,7 @@ impl FileBuffer {
                         }
                     }
                     CTRL_PASTE_SHORTCUT => {
-                        self.from_clipboard();
+                        self.copy_clipboard();
                     }
                     CTRL_UNDO_REDO_SHORTCUT => {
                         return Event {
@@ -1129,8 +1129,10 @@ impl FileBuffer {
                     }
                 }
                 Key::Delete => {
-                    let content = self.contents[self.text_location].to_string();
-                    self.action_do(Action::remove(self.text_location, content, 1));
+                    if self.text_location < (self.contents.len() - 1) {
+                        let content = self.contents[self.text_location].to_string();
+                        self.action_do(Action::remove(self.text_location, content, 1));
+                    }
                 }
                 Key::Insert => {
                     // TODO: implement insert semantics
@@ -2530,6 +2532,7 @@ fn save_as_close_callback(_item: &MenuItem) -> Event {
 }
 
 fn save_file_buffer_callback(item: &MenuItem) -> Event {
+    log::info!("Saving to file {}", item.file_path);
     match OpenOptions::new()
         .create(true)
         .write(true)
@@ -2578,6 +2581,7 @@ fn save_file_buffer_callback(item: &MenuItem) -> Event {
                             continue;
                         }
                         buffer_one[0] = item.contents[j] as u8;
+
                         // write buffer to file
                         match file.write(&buffer_one) {
                             Ok(_) => { /* noop */ }
@@ -2645,6 +2649,17 @@ impl MenuItem {
             file_path: String::from(""),
             contents: Vec::new(),
             title,
+        }
+    }
+
+    pub fn from(menu_item: &MenuItem) -> Self {
+        Self {
+            shortcut: menu_item.shortcut,
+            selected: menu_item.selected,
+            callback: menu_item.callback,
+            file_path: menu_item.file_path.clone(),
+            contents: menu_item.contents.clone(),
+            title: menu_item.title.clone(),
         }
     }
 }
@@ -3020,6 +3035,15 @@ impl HandleKey for InputDialog {
                 };
             }
             Key::Enter => {
+                if self.dialog_type == DialogType::Save {
+                    if let Some(selected_item) = self.menu_items.iter().nth(self.selected_index) {
+                        // run save file callback on modified item with file_path from this InputDialog
+                        let mut item_copy = MenuItem::from(selected_item);
+                        item_copy.file_path = self.input.clone();
+                        return (selected_item.callback)(&item_copy);
+                    }
+                }
+
                 let mut gotoline_event = None;
                 if self.dialog_type == DialogType::Goto && !self.input.is_empty() {
                     match self.input.parse() {
@@ -3127,6 +3151,11 @@ struct OpenFileMenu {
     size: Size,
 }
 
+struct PathBufItem {
+    depth: usize,
+    pathbuf: PathBuf,
+}
+
 impl OpenFileMenu {
     /**
      * Load first N-levels directory and files under given path
@@ -3134,60 +3163,99 @@ impl OpenFileMenu {
     fn load_directory(&self, dir: PathBuf, levels: usize) -> std::io::Result<Vec<FileItem>> {
         let mut children: Vec<FileItem> = Vec::new();
 
-        let mut dirs_to_process: Vec<(usize, PathBuf)> = Vec::new();
+        let mut dirs_to_process: Vec<PathBufItem> = Vec::new();
 
         for entry in fs::read_dir(dir.as_path())? {
             match entry {
                 Ok(dir) => {
-                    dirs_to_process.push((0, dir.path().to_path_buf()));
+                    dirs_to_process.push(PathBufItem {
+                        depth: 0,
+                        pathbuf: dir.path().to_path_buf(),
+                    });
                 }
                 Err(e) => {
-                    log::warn!("Failed readir dir: {:?} reason: {:?}", dir, e);
+                    log::warn!("Failed reading dir: {:?} reason: {:?}", dir, e);
                 }
             }
         }
 
+        dirs_to_process.sort_by(|l, r| {
+            if l.pathbuf.is_dir() == r.pathbuf.is_dir() {
+                l.pathbuf
+                    .to_str()
+                    .unwrap()
+                    .partial_cmp(r.pathbuf.to_str().unwrap())
+                    .unwrap()
+            } else if l.pathbuf.is_dir() && !r.pathbuf.is_dir() {
+                Ordering::Less
+            } else {
+                Ordering::Greater
+            }
+        });
+
         while !dirs_to_process.is_empty() {
-            let (depth, pathbuf) = dirs_to_process.remove(0);
-            if depth >= levels {
+            let pathbuf_item = dirs_to_process.remove(0);
+            if pathbuf_item.depth >= levels {
                 continue;
             }
 
+            let is_dir = pathbuf_item.pathbuf.is_dir();
             if !self.pattern.is_empty()
-                && !pathbuf.is_dir()
-                && !String::from(pathbuf.to_str().unwrap_or("")).contains(&self.pattern)
+                && !is_dir
+                && !String::from(pathbuf_item.pathbuf.to_str().unwrap_or(""))
+                    .contains(&self.pattern)
             {
                 continue;
             }
 
-            if !self.pattern.is_empty() && pathbuf.is_dir() {
+            if !self.pattern.is_empty() && is_dir {
             } else {
                 let visible = if !self.pattern.is_empty() {
                     true
                 } else {
-                    depth <= 1
+                    pathbuf_item.depth == 0
                 };
                 children.push(FileItem {
-                    is_dir: pathbuf.is_dir(),
-                    path: pathbuf.clone(),
-                    expanded: depth < 1,
+                    is_dir,
+                    path: pathbuf_item.pathbuf.clone(),
+                    expanded: false,
+                    depth: pathbuf_item.depth,
                     visible,
                 });
             }
 
-            if depth < LOAD_DIRECTORY_DEPTH && pathbuf.is_dir() {
-                let mut entry_index = 0;
-                for entry in fs::read_dir(pathbuf.as_path())? {
+            if pathbuf_item.depth < LOAD_DIRECTORY_DEPTH && is_dir {
+                let mut subdirs_to_process: Vec<PathBufItem> = Vec::new();
+                for entry in fs::read_dir(pathbuf_item.pathbuf.as_path())? {
                     match entry {
                         Ok(dir) => {
-                            dirs_to_process
-                                .insert(entry_index, (depth + 1, dir.path().to_path_buf()));
-                            entry_index += 1;
+                            subdirs_to_process.push(PathBufItem {
+                                depth: pathbuf_item.depth + 1,
+                                pathbuf: dir.path().to_path_buf(),
+                            });
                         }
                         Err(e) => {
-                            log::warn!("Failed readir dir: {:?} reason: {:?}", dir, e);
+                            log::warn!("Failed reading dir: {:?} reason: {:?}", dir, e);
                         }
                     }
+                }
+
+                subdirs_to_process.sort_by(|l, r| {
+                    if l.pathbuf.is_dir() == r.pathbuf.is_dir() {
+                        l.pathbuf
+                            .to_str()
+                            .unwrap()
+                            .partial_cmp(r.pathbuf.to_str().unwrap())
+                            .unwrap()
+                    } else if l.pathbuf.is_dir() && !r.pathbuf.is_dir() {
+                        Ordering::Less
+                    } else {
+                        Ordering::Greater
+                    }
+                });
+
+                for (entry_index, subdir) in subdirs_to_process.into_iter().enumerate() {
+                    dirs_to_process.insert(entry_index, subdir);
                 }
             }
         }
@@ -3313,19 +3381,20 @@ impl OpenFileMenu {
         if selected_path.is_none() {
             let item = self.items[self.selected_index].clone();
 
-            let item_path = String::from(item.path.as_path().to_str().unwrap_or(""));
+            let mut item_path = String::from(item.path.as_path().to_str().unwrap_or(""));
+            // appending platform file separator solves the issue with expanding same-prefixed
+            // folders (ie. .git, .github)
+            item_path.push(std::path::MAIN_SEPARATOR);
             for current_item in self.items.iter_mut() {
                 if current_item.path == item.path {
                     continue;
                 }
-                if String::from(
-                    current_item
-                        .path
-                        .as_path()
-                        .to_str()
-                        .unwrap_or(&String::from("")),
-                )
-                .starts_with(&item_path)
+                if current_item.depth != item.depth + 1 {
+                    // when opening dirs only toggle 1 level lower
+                    continue;
+                }
+                if String::from(current_item.path.as_path().to_str().unwrap_or(""))
+                    .starts_with(&item_path)
                 {
                     current_item.visible = item.expanded;
                 }
@@ -3370,6 +3439,7 @@ struct FileItem {
     expanded: bool,
     visible: bool,
     is_dir: bool,
+    depth: usize,
     // from path it should be easy to decypher parent path
     path: PathBuf,
 }
@@ -3380,6 +3450,7 @@ impl FileItem {
             visible: true,
             expanded: false,
             is_dir: false,
+            depth: 0,
             path: PathBuf::new(),
         }
     }
@@ -3499,9 +3570,31 @@ impl Render for OpenFileMenu {
         let mut count = self.view_start;
         let mut selected_item = self.selected_index;
         let mut count_invisible = 0;
+
+        let mut visibility_stack: Vec<bool> = Vec::new();
         while items_to_render.len() < max_displayed && count < self.items.len() {
             let item = &self.items[count];
-            if !item.visible {
+
+            while item.depth < visibility_stack.len() {
+                visibility_stack.pop();
+            }
+
+            let vis_stack_len = visibility_stack.len();
+            if vis_stack_len == 0 || item.depth > vis_stack_len {
+                visibility_stack.push(item.visible)
+            } else if item.depth == vis_stack_len {
+                visibility_stack[vis_stack_len - 1] = item.visible
+            }
+
+            // if at least one parent is hidden hide all subitems
+            let mut skip = false;
+            for visible in &visibility_stack {
+                if !visible {
+                    skip = true;
+                    break;
+                }
+            }
+            if skip {
                 count += 1;
                 count_invisible += 1;
                 continue;
@@ -3685,15 +3778,14 @@ impl Editor {
             // Create a path to the desired file
             // TODO: open multiple files
             let file_path = Path::new(&args[1]);
-            let joined_pathbuf: std::path::PathBuf;
 
             let pwd_path = env::current_dir()?;
-            if file_path.is_relative() {
+            let joined_pathbuf: std::path::PathBuf = if file_path.is_relative() {
                 let old_relative_path: &Path = file_path;
-                joined_pathbuf = pwd_path.as_path().join(old_relative_path);
+                pwd_path.as_path().join(old_relative_path)
             } else {
-                joined_pathbuf = file_path.to_path_buf();
-            }
+                file_path.to_path_buf()
+            };
 
             if self.open_file_buffer(joined_pathbuf).is_err() {
                 log::info!("Opened file: {:?}", file_path.display());
@@ -4161,11 +4253,10 @@ impl Editor {
         };
 
         if let Some(control_reference) = self.controls.last() {
-            let file_contents;
-            if show_intro {
-                file_contents = include_str!("help/intro.md");
+            let file_contents = if show_intro {
+                include_str!("help/intro.md")
             } else {
-                file_contents = match control_reference.control_type {
+                match control_reference.control_type {
                     ControlType::FileBuffer => include_str!("help/buffer.md"),
                     ControlType::Menu => include_str!("help/menu.md"),
                     ControlType::OpenFileMenu => include_str!("help/openfile.md"),
@@ -4173,8 +4264,8 @@ impl Editor {
                     ControlType::SelectionOverlay => include_str!("help/selection.md"),
                     ControlType::SearchOverlay => include_str!("help/search.md"),
                     _ => "",
-                };
-            }
+                }
+            };
 
             if file_contents.is_empty() {
                 return;
@@ -4369,11 +4460,8 @@ impl Editor {
 
         let current_path = env::current_dir()?;
         open_file_menu.last_loaded_dir = Some(current_path.clone());
-        for item in open_file_menu
-            .load_directory(current_path, LOAD_DIRECTORY_DEPTH)
-            .iter()
-        {
-            open_file_menu.items = item.clone();
+        if let Ok(item) = open_file_menu.load_directory(current_path, LOAD_DIRECTORY_DEPTH) {
+            open_file_menu.items = item
         }
         open_file_menu.total_items = open_file_menu.count_elements();
 
@@ -4481,13 +4569,30 @@ impl Editor {
                 self.syntax_highlight.find_syntax(pathbuf.clone()),
             )
         };
-        let buf_reader = BufReader::with_capacity(1024 * 10, file);
+        let mut buf_reader = BufReader::with_capacity(1024 * 10, file);
 
-        for line in buf_reader.lines().flatten() {
-            let mut char_vec: Vec<char> = line.chars().collect();
-            char_vec.push(NEWLINE);
-            file_buffer.lines.push_line(char_vec.len());
-            file_buffer.contents.append(&mut char_vec);
+        const BUFFER_SIZE: usize = 1024;
+        let mut buffer: [u8; BUFFER_SIZE] = [0; BUFFER_SIZE];
+        let mut line: Vec<char> = Vec::new();
+        loop {
+            let read_bytes = buf_reader.read(&mut buffer)?;
+            for rawch in &buffer[0..read_bytes] {
+                let ch = *rawch as char;
+                line.push(ch);
+                if ch == NEWLINE {
+                    file_buffer.lines.push_line(line.len());
+                    file_buffer.contents.append(&mut line);
+                    line = Vec::new();
+                }
+            }
+            if read_bytes != BUFFER_SIZE {
+                break;
+            }
+        }
+        if !line.is_empty() {
+            // this can happen if last or only line in file doesn't have a NEWLINE char
+            file_buffer.lines.push_line(line.len());
+            file_buffer.contents.append(&mut line);
         }
 
         match file_path.to_str() {
