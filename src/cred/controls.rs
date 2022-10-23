@@ -3166,7 +3166,7 @@ impl OpenFileMenu {
         for entry in fs::read_dir(dir.as_path())? {
             match entry {
                 Ok(dir) => {
-                    dirs_to_process.push(PathBufItem{
+                    dirs_to_process.push(PathBufItem {
                         depth: 0,
                         pathbuf: dir.path().to_path_buf(),
                     });
@@ -3179,7 +3179,11 @@ impl OpenFileMenu {
 
         dirs_to_process.sort_by(|l, r| {
             if l.pathbuf.is_dir() == r.pathbuf.is_dir() {
-                l.pathbuf.to_str().unwrap().partial_cmp(&r.pathbuf.to_str().unwrap()).unwrap()
+                l.pathbuf
+                    .to_str()
+                    .unwrap()
+                    .partial_cmp(&r.pathbuf.to_str().unwrap())
+                    .unwrap()
             } else if l.pathbuf.is_dir() && !r.pathbuf.is_dir() {
                 Ordering::Less
             } else {
@@ -3196,7 +3200,8 @@ impl OpenFileMenu {
             let is_dir = pathbuf_item.pathbuf.is_dir();
             if !self.pattern.is_empty()
                 && !is_dir
-                && !String::from(pathbuf_item.pathbuf.to_str().unwrap_or("")).contains(&self.pattern)
+                && !String::from(pathbuf_item.pathbuf.to_str().unwrap_or(""))
+                    .contains(&self.pattern)
             {
                 continue;
             }
@@ -3222,11 +3227,10 @@ impl OpenFileMenu {
                 for entry in fs::read_dir(pathbuf_item.pathbuf.as_path())? {
                     match entry {
                         Ok(dir) => {
-                            subdirs_to_process
-                                .push(PathBufItem{
-                                    depth: pathbuf_item.depth + 1,
-                                    pathbuf: dir.path().to_path_buf(),
-                                });
+                            subdirs_to_process.push(PathBufItem {
+                                depth: pathbuf_item.depth + 1,
+                                pathbuf: dir.path().to_path_buf(),
+                            });
                         }
                         Err(e) => {
                             log::warn!("Failed reading dir: {:?} reason: {:?}", dir, e);
@@ -3236,7 +3240,11 @@ impl OpenFileMenu {
 
                 subdirs_to_process.sort_by(|l, r| {
                     if l.pathbuf.is_dir() == r.pathbuf.is_dir() {
-                        l.pathbuf.to_str().unwrap().partial_cmp(&r.pathbuf.to_str().unwrap()).unwrap()
+                        l.pathbuf
+                            .to_str()
+                            .unwrap()
+                            .partial_cmp(&r.pathbuf.to_str().unwrap())
+                            .unwrap()
                     } else if l.pathbuf.is_dir() && !r.pathbuf.is_dir() {
                         Ordering::Less
                     } else {
