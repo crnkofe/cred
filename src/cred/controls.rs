@@ -3182,7 +3182,7 @@ impl OpenFileMenu {
                 l.pathbuf
                     .to_str()
                     .unwrap()
-                    .partial_cmp(&r.pathbuf.to_str().unwrap())
+                    .partial_cmp(r.pathbuf.to_str().unwrap())
                     .unwrap()
             } else if l.pathbuf.is_dir() && !r.pathbuf.is_dir() {
                 Ordering::Less
@@ -3214,7 +3214,7 @@ impl OpenFileMenu {
                     pathbuf_item.depth == 0
                 };
                 children.push(FileItem {
-                    is_dir: is_dir,
+                    is_dir,
                     path: pathbuf_item.pathbuf.clone(),
                     expanded: false,
                     depth: pathbuf_item.depth,
@@ -3243,7 +3243,7 @@ impl OpenFileMenu {
                         l.pathbuf
                             .to_str()
                             .unwrap()
-                            .partial_cmp(&r.pathbuf.to_str().unwrap())
+                            .partial_cmp(r.pathbuf.to_str().unwrap())
                             .unwrap()
                     } else if l.pathbuf.is_dir() && !r.pathbuf.is_dir() {
                         Ordering::Less
@@ -3252,10 +3252,8 @@ impl OpenFileMenu {
                     }
                 });
 
-                let mut entry_index = 0;
-                for subdir in subdirs_to_process {
+                for (entry_index, subdir) in subdirs_to_process.into_iter().enumerate() {
                     dirs_to_process.insert(entry_index, subdir);
-                    entry_index += 1;
                 }
             }
         }
