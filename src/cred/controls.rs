@@ -101,7 +101,7 @@ const CTRL_UNDO_REDO_SHORTCUT: char = 'z';
 // search shortcuts
 const CTRL_SEARCH_SHORTCUT: char = 'f';
 const SEARCH_FORWARD_SHORTCUT: char = 'f';
-const SEARCH_BACKWARD_SHORTCUT: char = 'd';
+const SEARCH_BACKWARD_SHORTCUT: char = 'b';
 
 // wsad movement shortcuts where applicable
 const GAME_UP_SHORTCUT: char = 'w';
