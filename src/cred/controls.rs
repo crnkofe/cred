@@ -1129,8 +1129,10 @@ impl FileBuffer {
                     }
                 }
                 Key::Delete => {
-                    let content = self.contents[self.text_location].to_string();
-                    self.action_do(Action::remove(self.text_location, content, 1));
+                    if self.text_location < (self.contents.len() - 1) {
+                        let content = self.contents[self.text_location].to_string();
+                        self.action_do(Action::remove(self.text_location, content, 1));
+                    }
                 }
                 Key::Insert => {
                     // TODO: implement insert semantics
